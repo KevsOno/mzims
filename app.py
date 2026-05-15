@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 import numpy as np
 import smtplib
 from email.message import EmailMessage
-from collections import defaultdict
+import time
 
 # ---------- CONFIG ----------
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -32,28 +32,23 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ---------- HELPER FUNCTIONS ----------
-def get_sales_velocity(product_id, days_back=30):
-    """Return average daily demand (units) for a product."""
-    # First check stock_limits table
+def get_sales_velocity(product_id):
+    """Read precomputed avg_daily_demand from stock_limits."""
     res = supabase.table("stock_limits").select("avg_daily_demand") \
         .eq("product_id", product_id).execute()
     if res.data and res.data[0].get("avg_daily_demand") is not None:
         return float(res.data[0]["avg_daily_demand"])
-    # Fallback: compute from stock_movements (sales)
-    start_date = (date.today() - timedelta(days=days_back)).isoformat()
-    mov = supabase.table("stock_movements").select("quantity_change") \
-        .eq("product_id", product_id) \
-        .eq("movement_type", "sale") \
-        .gte("movement_date", start_date).execute()
-    total_sold = sum(abs(m["quantity_change"]) for m in mov.data) if mov.data else 0
-    return total_sold / days_back
+    return 0.0
 
 def get_reorder_point(product_id):
-    """Return (reorder_point, safety_stock) from stock_limits or compute dynamic."""
-    lim = supabase.table("stock_limits").select("reorder_point, safety_stock") \
+    """Return (reorder_point, safety_stock) from stock_limits or compute fallback."""
+    lim = supabase.table("stock_limits").select("reorder_point, safety_stock, avg_daily_demand") \
         .eq("product_id", product_id).execute()
     if lim.data and lim.data[0].get("reorder_point") is not None:
-        return lim.data[0]["reorder_point"], lim.data[0]["safety_stock"]
+        rp = lim.data[0]["reorder_point"]
+        ss = lim.data[0]["safety_stock"]
+        return rp, ss
+    # Fallback: compute from sales velocity (but it's now precomputed)
     demand = get_sales_velocity(product_id)
     lead_time = get_product_lead_time(product_id)
     reorder = max(5, int(demand * lead_time * 1.5))
@@ -67,64 +62,39 @@ def get_product_lead_time(product_id):
     return 7
 
 def get_current_stock(product_id):
-    """Total quantity across all batches."""
     inv = supabase.table("inventory").select("quantity").eq("product_id", product_id).execute()
     return sum(i["quantity"] for i in inv.data) if inv.data else 0
 
-def record_sale(product_id, quantity_sold, selling_price_per_unit, sale_date=None):
+def record_sale_atomic(product_id, quantity_sold, selling_price_per_unit, sale_date=None):
     """
-    Deduct stock using FEFO (earliest expiry first), record sale and stock movement.
+    Call the atomic Postgres function to record sale.
     Returns (success, message).
     """
     if sale_date is None:
         sale_date = date.today().isoformat()
-    # Get all batches with quantity > 0, sorted by expiry
-    batches = supabase.table("inventory").select("id, quantity, unit_cost, expiry_date") \
-        .eq("product_id", product_id).gt("quantity", 0).order("expiry_date").execute().data
-    if not batches:
-        return False, "No stock available for this product."
-    remaining = quantity_sold
-    cogs_total = 0.0
-    used_batches = []
-    for batch in batches:
-        if remaining <= 0:
-            break
-        deduct = min(remaining, batch["quantity"])
-        new_qty = batch["quantity"] - deduct
-        # Update inventory
-        supabase.table("inventory").update({"quantity": new_qty}).eq("id", batch["id"]).execute()
-        cogs_total += deduct * batch["unit_cost"]
-        remaining -= deduct
-        used_batches.append((batch["id"], deduct, batch["unit_cost"]))
-    if remaining > 0:
-        return False, f"Insufficient stock. Only {quantity_sold - remaining} units available."
-    # Insert sales record
-    avg_cogs = cogs_total / quantity_sold
-    sale_record = {
-        "sale_date": sale_date,
-        "product_id": product_id,
-        "quantity": quantity_sold,
-        "selling_price_per_unit": selling_price_per_unit,
-        "cogs_per_unit": avg_cogs,
-        "notes": f"Auto FEFO: {len(used_batches)} batches"
-    }
-    supabase.table("sales").insert(sale_record).execute()
-    # Insert stock movement
-    supabase.table("stock_movements").insert({
-        "product_id": product_id,
-        "quantity_change": -quantity_sold,
-        "movement_date": sale_date,
-        "movement_type": "sale",
-        "notes": f"Sale of {quantity_sold} units @ ₦{selling_price_per_unit}"
-    }).execute()
-    return True, f"Sale recorded. Profit: ₦{quantity_sold * (selling_price_per_unit - avg_cogs):,.2f}"
+    # Use rpc to call the function
+    result = supabase.rpc(
+        "record_sale",
+        {
+            "p_product_id": product_id,
+            "p_quantity": quantity_sold,
+            "p_selling_price_per_unit": selling_price_per_unit,
+            "p_sale_date": sale_date
+        }
+    ).execute()
+    if result.data and result.data.get("success"):
+        return True, f"Sale recorded. Profit: ₦{result.data['profit']:,.2f}"
+    else:
+        error_msg = result.data.get("error") if result.data else "Unknown error"
+        return False, f"Failed: {error_msg}"
 
 def send_monthly_report(month_offset=1):
-    """Email monthly sales & profit summary for the previous month."""
+    """Email monthly sales & profit summary with retry and logging."""
     today = date.today()
     first_of_current = date(today.year, today.month, 1)
     last_month_end = first_of_current - timedelta(days=1)
     last_month_start = date(last_month_end.year, last_month_end.month, 1)
+    
     # Fetch sales in range
     sales = supabase.table("sales").select("*, products(name)") \
         .gte("sale_date", last_month_start.isoformat()) \
@@ -137,7 +107,6 @@ def send_monthly_report(month_offset=1):
         total_cogs = df["total_cogs"].sum()
         total_profit = df["profit"].sum()
         margin = (total_profit / total_rev * 100) if total_rev else 0
-        # Product breakdown
         prod_summary = df.groupby("products")["quantity"].sum().to_string()
         body = f"""
         Monthly Report – {last_month_start.strftime('%B %Y')}
@@ -150,38 +119,58 @@ def send_monthly_report(month_offset=1):
         Top selling products (units):
         {prod_summary}
         """
-    # Send email
+    
+    # Email sending with retry (3 attempts)
+    to_email = st.secrets["email"]["to_email"]
+    subject = f"Muzoscents Monthly Report - {last_month_start.strftime('%B %Y')}"
     msg = EmailMessage()
     msg.set_content(body)
-    msg["Subject"] = f"Muzoscents Monthly Report - {last_month_start.strftime('%B %Y')}"
+    msg["Subject"] = subject
     msg["From"] = st.secrets["email"]["sender"]
-    msg["To"] = st.secrets["email"]["to_email"]
-    try:
-        with smtplib.SMTP(st.secrets["email"]["smtp_server"], st.secrets["email"]["smtp_port"]) as server:
-            server.starttls()
-            server.login(st.secrets["email"]["sender"], st.secrets["email"]["password"])
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        st.error(f"Email failed: {e}")
-        return False
+    msg["To"] = to_email
+    
+    success = False
+    error_msg = ""
+    for attempt in range(3):
+        try:
+            with smtplib.SMTP(st.secrets["email"]["smtp_server"], st.secrets["email"]["smtp_port"]) as server:
+                server.starttls()
+                server.login(st.secrets["email"]["sender"], st.secrets["email"]["password"])
+                server.send_message(msg)
+            success = True
+            break
+        except Exception as e:
+            error_msg = str(e)
+            time.sleep(2)  # wait before retry
+    
+    # Log to email_log
+    supabase.table("email_log").insert({
+        "recipient": to_email,
+        "subject": subject,
+        "status": "success" if success else "failed",
+        "error_message": error_msg if not success else None,
+        "report_month": last_month_start.isoformat()
+    }).execute()
+    
+    return success
 
 def get_purchasing_advice():
-    """Return list of products needing reorder with suggested quantity."""
+    """Use precomputed avg_daily_demand from stock_limits."""
     advice = []
     products = supabase.table("products").select("id, name, sku, lead_time_days, reorder_point, safety_stock").execute().data
     for p in products:
         pid = p["id"]
         stock = get_current_stock(pid)
-        velocity = get_sales_velocity(pid)
+        # Get velocity from stock_limits
+        vel_res = supabase.table("stock_limits").select("avg_daily_demand").eq("product_id", pid).execute()
+        velocity = float(vel_res.data[0]["avg_daily_demand"]) if vel_res.data and vel_res.data[0].get("avg_daily_demand") else 0.0
         lead = p.get("lead_time_days", 7)
-        # Use stored reorder_point if exists, else compute
         rp, ss = get_reorder_point(pid)
         days_of_stock = stock / velocity if velocity > 0 else 999
         suggested_qty = 0
         reason = ""
         if stock <= rp:
-            suggested_qty = max(int(velocity * lead * 2), 10)  # cover 2 lead times
+            suggested_qty = max(int(velocity * lead * 2), 10)
             reason = f"Stock ({stock}) below reorder point ({rp})"
         elif days_of_stock < 14:
             suggested_qty = max(int(velocity * lead * 1.5), 5)
@@ -203,14 +192,13 @@ def get_purchasing_advice():
 pages = ["Dashboard", "Products", "Inventory", "Sales Ledger", "Purchasing Advice",
          "Risk & FEFO", "Alerts & Advisories", "AI Stock Limits", "CSV Upload", "Monthly Report"]
 if st.session_state.user_role == "viewer":
-    pages = [p for p in pages if p not in ["Products", "CSV Upload"]]  # viewers cannot edit master data
+    pages = [p for p in pages if p not in ["Products", "CSV Upload"]]
 
 page = st.sidebar.radio("Go to", pages)
 
 # ========== PAGE: DASHBOARD ==========
 if page == "Dashboard":
     st.header("📊 Muzoscents Dashboard")
-    # Sales KPIs
     sales = supabase.table("sales").select("total_revenue, total_cogs, profit").execute().data
     if sales:
         df_s = pd.DataFrame(sales)
@@ -224,13 +212,11 @@ if page == "Dashboard":
         col3.metric("Net Profit", f"₦{total_profit:,.0f}")
         col4.metric("Margin", f"{margin:.1f}%")
     else:
-        st.info("No sales data yet. Add sales in 'Sales Ledger'.")
-    # Stock overview
+        st.info("No sales data yet.")
     inv_total = supabase.table("inventory").select("quantity, product_id").execute().data
     if inv_total:
         total_units = sum(i["quantity"] for i in inv_total)
         st.metric("Total Inventory Units", total_units)
-    # Alerts summary
     alerts = supabase.table("alert_log").select("alert_type, action_taken").execute().data
     if alerts:
         df_a = pd.DataFrame(alerts)
@@ -243,24 +229,26 @@ elif page == "Products":
     if st.session_state.user_role != "admin":
         st.error("Admin only.")
         st.stop()
-    # Show products table
     prods = supabase.table("products").select("*").execute().data
     if prods:
         df_p = pd.DataFrame(prods)
-        st.dataframe(df_p[["sku","name","category","selling_price","lead_time_days","shelf_life_days"]])
+        st.dataframe(df_p[["sku","name","category","selling_price","purchase_price","lead_time_days","shelf_life_days"]])
     else:
         st.info("No products.")
     with st.form("add_product"):
         sku = st.text_input("SKU")
         name = st.text_input("Name")
         cat = st.text_input("Category")
-        sp = st.number_input("Selling Price (₦)", min_value=0.0, step=0.5)
+        selling_price = st.number_input("Selling Price (₦)", min_value=0.0, step=0.5)
+        purchase_price = st.number_input("Purchase Price (₦)", min_value=0.0, step=0.5)
         lead = st.number_input("Lead Time (days)", min_value=1, value=7)
         shelf = st.number_input("Shelf Life (days)", min_value=1, value=90)
         if st.form_submit_button("Add Product"):
             if sku and name:
                 supabase.table("products").insert({
-                    "sku": sku, "name": name, "category": cat, "selling_price": sp,
+                    "sku": sku, "name": name, "category": cat,
+                    "selling_price": selling_price,
+                    "purchase_price": purchase_price,
                     "lead_time_days": lead, "shelf_life_days": shelf
                 }).execute()
                 st.success("Added")
@@ -282,7 +270,7 @@ elif page == "Inventory":
         qty = st.number_input("Quantity", min_value=0)
         unit_cost = st.number_input("Unit Cost (₦)", min_value=0.0)
         exp_date = st.date_input("Expiry Date", min_value=date.today())
-        loc = st.selectbox("Storage", ["warehouse","shelf","cold_room"])
+        loc = st.selectbox("Storage", ["warehouse", "shelf"])   # removed "cold_room"
         if st.form_submit_button("Add Stock"):
             prod = supabase.table("products").select("id").eq("sku", prod_sku).execute()
             if not prod.data:
@@ -296,7 +284,6 @@ elif page == "Inventory":
                     "expiry_date": exp_date.isoformat(),
                     "storage_location": loc
                 }).execute()
-                # Record movement
                 supabase.table("stock_movements").insert({
                     "product_id": prod.data[0]["id"],
                     "quantity_change": qty,
@@ -310,7 +297,6 @@ elif page == "Inventory":
 # ========== PAGE: SALES LEDGER ==========
 elif page == "Sales Ledger":
     st.header("🧾 Sales Ledger & Profit Tracking")
-    # Manual sale entry
     with st.form("record_sale"):
         prod_sku = st.text_input("Product SKU")
         qty = st.number_input("Quantity sold", min_value=1)
@@ -321,12 +307,17 @@ elif page == "Sales Ledger":
             if not prod.data:
                 st.error("Product not found")
             else:
-                ok, msg = record_sale(prod.data[0]["id"], qty, selling_price, sale_date.isoformat())
-                if ok:
-                    st.success(msg)
-                    st.rerun()
+                # Check stock existence quickly (optional, atomic function will also check)
+                stock = get_current_stock(prod.data[0]["id"])
+                if stock < qty:
+                    st.error(f"Insufficient stock. Only {stock} units available.")
                 else:
-                    st.error(msg)
+                    ok, msg = record_sale_atomic(prod.data[0]["id"], qty, selling_price, sale_date.isoformat())
+                    if ok:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
     st.subheader("Sales History")
     sales = supabase.table("sales").select("*, products(name, sku)").order("sale_date", desc=True).execute().data
     if sales:
@@ -342,12 +333,11 @@ elif page == "Sales Ledger":
 # ========== PAGE: PURCHASING ADVICE ==========
 elif page == "Purchasing Advice":
     st.header("🛒 Intelligent Purchasing Recommendations")
-    st.caption("Based on sales velocity, current stock, lead times, and reorder points.")
+    st.caption("Based on precomputed daily demand (updated daily by cron job).")
     advice = get_purchasing_advice()
     if advice:
         df_adv = pd.DataFrame(advice)
         st.dataframe(df_adv)
-        st.subheader("Action Items")
         for _, row in df_adv.iterrows():
             st.info(f"**{row['product']}** – {row['reason']} → Order {row['suggested_order_qty']} units (lead time {row['lead_time_days']} days).")
     else:
@@ -356,7 +346,6 @@ elif page == "Purchasing Advice":
 # ========== PAGE: RISK & FEFO ==========
 elif page == "Risk & FEFO":
     st.header("⚠️ Expiry Risk & FEFO Recommendations")
-    # Similar logic as original but without branches
     inv = supabase.table("inventory").select("*, products(name, sku, selling_price)").execute().data
     if not inv:
         st.info("No inventory data.")
@@ -389,7 +378,6 @@ elif page == "Risk & FEFO":
     df_risk = df_risk.sort_values("Days Left")
     st.dataframe(df_risk)
     st.subheader("FEFO Order")
-    st.markdown("Consume in this order (earliest expiry first):")
     for _, row in df_risk.iterrows():
         st.write(f"- {row['Product']} (Batch `{row['Batch']}`) – expires {row['Expiry']}")
 
@@ -401,7 +389,6 @@ elif page == "Alerts & Advisories":
         df_al = pd.DataFrame(alerts)
         df_al["product"] = df_al["products"].apply(lambda x: x["name"] if x else "")
         st.dataframe(df_al[["product","batch","alert_type","details","action_taken","created_at"]])
-        # Manual action update
         unactioned = [a for a in alerts if not a.get("action_taken")]
         if unactioned:
             alert_id = st.selectbox("Select Alert ID", [a["id"] for a in unactioned])
@@ -421,7 +408,7 @@ elif page == "AI Stock Limits":
         df_lim["product"] = df_lim["products"].apply(lambda x: x["name"])
         st.dataframe(df_lim[["product","avg_daily_demand","safety_stock","reorder_point","max_stock","calculated_at"]])
     else:
-        st.info("Run the daily Edge Function to compute limits.")
+        st.info("Run the daily cron job to compute limits.")
 
 # ========== PAGE: CSV UPLOAD ==========
 elif page == "CSV Upload":
@@ -438,28 +425,32 @@ elif page == "CSV Upload":
                     if not all(c in df.columns for c in required):
                         st.error(f"Missing columns: {required}")
                     else:
-                        df["lead_time_days"] = df.get("lead_time_days", 7)
+                        if "purchase_price" not in df.columns:
+                            df["purchase_price"] = 0
                         supabase.table("products").insert(df.to_dict(orient="records")).execute()
                         st.success("Products uploaded")
                 elif entity == "Inventory":
                     required = {"product_sku","batch","quantity","unit_cost","expiry_date"}
-                    # Map SKU to product_id
-                    skus = df["product_sku"].unique()
-                    prods = {p["sku"]:p["id"] for p in supabase.table("products").select("id,sku").in_("sku", skus).execute().data}
-                    df["product_id"] = df["product_sku"].map(prods)
-                    if df["product_id"].isna().any():
-                        st.error("Some SKUs not found")
+                    if not all(c in df.columns for c in required):
+                        st.error(f"Missing columns: {required}")
                     else:
-                        df = df[["product_id","batch","quantity","unit_cost","expiry_date"]]
-                        supabase.table("inventory").insert(df.to_dict(orient="records")).execute()
-                        st.success("Inventory uploaded")
+                        # Filter negative quantities
+                        df = df[df['quantity'] >= 0]
+                        skus = df["product_sku"].unique()
+                        prods = {p["sku"]:p["id"] for p in supabase.table("products").select("id,sku").in_("sku", skus).execute().data}
+                        df["product_id"] = df["product_sku"].map(prods)
+                        if df["product_id"].isna().any():
+                            st.error("Some SKUs not found")
+                        else:
+                            df = df[["product_id","batch","quantity","unit_cost","expiry_date"]]
+                            supabase.table("inventory").insert(df.to_dict(orient="records")).execute()
+                            st.success("Inventory uploaded")
                 elif entity == "Sales":
                     required = {"product_sku","quantity","selling_price_per_unit","sale_date"}
-                    # For each sale, call record_sale to handle FEFO
                     for _, row in df.iterrows():
                         prod = supabase.table("products").select("id").eq("sku", row["product_sku"]).execute()
                         if prod.data:
-                            record_sale(prod.data[0]["id"], row["quantity"], row["selling_price_per_unit"], row["sale_date"])
+                            record_sale_atomic(prod.data[0]["id"], row["quantity"], row["selling_price_per_unit"], row["sale_date"])
                     st.success("Sales processed")
             except Exception as e:
                 st.error(f"Upload error: {e}")
@@ -474,5 +465,5 @@ elif page == "Monthly Report":
             if success:
                 st.success("Report sent successfully!")
             else:
-                st.error("Failed to send email. Check secrets and network.")
-    st.caption("Report is automatically based on last month's data. Configure recipient in secrets.")
+                st.error("Failed to send email after 3 attempts. Check logs.")
+    st.caption("Report is based on last month's data. Sending is logged in `email_log` table.")
