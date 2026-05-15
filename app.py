@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 from datetime import date, datetime, timedelta
-import numpy as np
 import smtplib
 from email.message import EmailMessage
 import time
@@ -41,14 +40,14 @@ def get_sales_velocity(product_id):
     return 0.0
 
 def get_reorder_point(product_id):
-    """Return (reorder_point, safety_stock) from stock_limits or compute fallback."""
+    """Return (reorder_point, safety_stock) from stock_limits or fallback."""
     lim = supabase.table("stock_limits").select("reorder_point, safety_stock, avg_daily_demand") \
         .eq("product_id", product_id).execute()
     if lim.data and lim.data[0].get("reorder_point") is not None:
         rp = lim.data[0]["reorder_point"]
         ss = lim.data[0]["safety_stock"]
         return rp, ss
-    # Fallback: compute from sales velocity (but it's now precomputed)
+    # Fallback: compute from sales velocity
     demand = get_sales_velocity(product_id)
     lead_time = get_product_lead_time(product_id)
     reorder = max(5, int(demand * lead_time * 1.5))
@@ -72,7 +71,6 @@ def record_sale_atomic(product_id, quantity_sold, selling_price_per_unit, sale_d
     """
     if sale_date is None:
         sale_date = date.today().isoformat()
-    # Use rpc to call the function
     result = supabase.rpc(
         "record_sale",
         {
@@ -88,7 +86,7 @@ def record_sale_atomic(product_id, quantity_sold, selling_price_per_unit, sale_d
         error_msg = result.data.get("error") if result.data else "Unknown error"
         return False, f"Failed: {error_msg}"
 
-def send_monthly_report(month_offset=1):
+def send_monthly_report():
     """Email monthly sales & profit summary with retry and logging."""
     today = date.today()
     first_of_current = date(today.year, today.month, 1)
@@ -120,7 +118,6 @@ def send_monthly_report(month_offset=1):
         {prod_summary}
         """
     
-    # Email sending with retry (3 attempts)
     to_email = st.secrets["email"]["to_email"]
     subject = f"Muzoscents Monthly Report - {last_month_start.strftime('%B %Y')}"
     msg = EmailMessage()
@@ -141,7 +138,7 @@ def send_monthly_report(month_offset=1):
             break
         except Exception as e:
             error_msg = str(e)
-            time.sleep(2)  # wait before retry
+            time.sleep(2)
     
     # Log to email_log
     supabase.table("email_log").insert({
@@ -161,7 +158,6 @@ def get_purchasing_advice():
     for p in products:
         pid = p["id"]
         stock = get_current_stock(pid)
-        # Get velocity from stock_limits
         vel_res = supabase.table("stock_limits").select("avg_daily_demand").eq("product_id", pid).execute()
         velocity = float(vel_res.data[0]["avg_daily_demand"]) if vel_res.data and vel_res.data[0].get("avg_daily_demand") else 0.0
         lead = p.get("lead_time_days", 7)
@@ -188,8 +184,63 @@ def get_purchasing_advice():
             })
     return advice
 
+# ---------- ANALYTICS HELPERS ----------
+def get_daily_sales(days_back=30):
+    start_date = (date.today() - timedelta(days=days_back)).isoformat()
+    sales = supabase.table("sales").select("sale_date, total_revenue, profit") \
+        .gte("sale_date", start_date).execute().data
+    if not sales:
+        return pd.DataFrame(columns=["sale_date", "total_revenue", "profit"])
+    df = pd.DataFrame(sales)
+    df["sale_date"] = pd.to_datetime(df["sale_date"])
+    df = df.groupby("sale_date")[["total_revenue", "profit"]].sum().reset_index()
+    return df
+
+def get_top_products(limit=10, days_back=30):
+    start_date = (date.today() - timedelta(days=days_back)).isoformat()
+    sales = supabase.table("sales").select("product_id, quantity, products(name)") \
+        .gte("sale_date", start_date).execute().data
+    if not sales:
+        return pd.DataFrame()
+    df = pd.DataFrame(sales)
+    df["product_name"] = df["products"].apply(lambda x: x["name"] if x else "Unknown")
+    top = df.groupby("product_name")["quantity"].sum().reset_index()
+    top = top.sort_values("quantity", ascending=False).head(limit)
+    return top
+
+def get_slow_moving_stock(days_threshold=60):
+    inv = supabase.table("inventory").select("product_id, quantity").execute().data
+    if not inv:
+        return pd.DataFrame()
+    inv_df = pd.DataFrame(inv)
+    stock_by_product = inv_df.groupby("product_id")["quantity"].sum().reset_index()
+    limits = supabase.table("stock_limits").select("product_id, avg_daily_demand").execute().data
+    limits_df = pd.DataFrame(limits) if limits else pd.DataFrame()
+    merged = stock_by_product.merge(limits_df, on="product_id", how="left")
+    merged["avg_daily_demand"] = merged["avg_daily_demand"].fillna(0)
+    merged["days_of_stock"] = merged.apply(lambda r: r["quantity"] / r["avg_daily_demand"] if r["avg_daily_demand"] > 0 else 999, axis=1)
+    slow = merged[merged["days_of_stock"] > days_threshold]
+    products = supabase.table("products").select("id, name").execute().data
+    prod_df = pd.DataFrame(products) if products else pd.DataFrame()
+    slow = slow.merge(prod_df, left_on="product_id", right_on="id", how="left")
+    slow = slow[["name", "quantity", "avg_daily_demand", "days_of_stock"]]
+    slow = slow.sort_values("days_of_stock", ascending=False)
+    return slow
+
+def get_category_performance(days_back=90):
+    start_date = (date.today() - timedelta(days=days_back)).isoformat()
+    sales = supabase.table("sales").select("product_id, total_revenue, profit, products(category)") \
+        .gte("sale_date", start_date).execute().data
+    if not sales:
+        return pd.DataFrame()
+    df = pd.DataFrame(sales)
+    df["category"] = df["products"].apply(lambda x: x["category"] if x and x.get("category") else "Uncategorized")
+    cat_rev = df.groupby("category")["total_revenue"].sum().reset_index()
+    cat_rev = cat_rev.sort_values("total_revenue", ascending=False)
+    return cat_rev
+
 # ---------- GLOBAL NAVIGATION ----------
-pages = ["Dashboard", "Products", "Inventory", "Sales Ledger", "Purchasing Advice",
+pages = ["Dashboard", "Analytics", "Products", "Inventory", "Sales Ledger", "Purchasing Advice",
          "Risk & FEFO", "Alerts & Advisories", "AI Stock Limits", "CSV Upload", "Monthly Report"]
 if st.session_state.user_role == "viewer":
     pages = [p for p in pages if p not in ["Products", "CSV Upload"]]
@@ -213,7 +264,7 @@ if page == "Dashboard":
         col4.metric("Margin", f"{margin:.1f}%")
     else:
         st.info("No sales data yet.")
-    inv_total = supabase.table("inventory").select("quantity, product_id").execute().data
+    inv_total = supabase.table("inventory").select("quantity").execute().data
     if inv_total:
         total_units = sum(i["quantity"] for i in inv_total)
         st.metric("Total Inventory Units", total_units)
@@ -222,6 +273,47 @@ if page == "Dashboard":
         df_a = pd.DataFrame(alerts)
         open_alerts = len(df_a[df_a["action_taken"].isna()])
         st.metric("Open Alerts", open_alerts)
+
+# ========== PAGE: ANALYTICS ==========
+elif page == "Analytics":
+    st.header("📈 Sales & Inventory Analytics")
+    days = st.selectbox("Show last N days", [30, 60, 90], index=0)
+    
+    st.subheader("Daily Sales & Profit Trend")
+    daily_df = get_daily_sales(days)
+    if not daily_df.empty:
+        st.line_chart(daily_df.set_index("sale_date")[["total_revenue", "profit"]])
+    else:
+        st.info("Not enough sales data to display trends.")
+    
+    st.subheader(f"Top {10} Selling Products (last {days} days)")
+    top_df = get_top_products(10, days)
+    if not top_df.empty:
+        st.bar_chart(top_df.set_index("product_name")["quantity"])
+    else:
+        st.info("No sales data for top products.")
+    
+    st.subheader("Slow‑Moving Stock ( > 60 days of inventory )")
+    slow_df = get_slow_moving_stock(60)
+    if not slow_df.empty:
+        st.dataframe(slow_df.rename(columns={
+            "name": "Product",
+            "quantity": "Current Stock",
+            "avg_daily_demand": "Daily Demand",
+            "days_of_stock": "Days of Stock"
+        }).style.format({
+            "Daily Demand": "{:.2f}",
+            "Days of Stock": "{:.1f}"
+        }))
+    else:
+        st.success("No slow‑moving stock found. Inventory turns well.")
+    
+    st.subheader("Category Performance (last 90 days)")
+    cat_df = get_category_performance(90)
+    if not cat_df.empty:
+        st.bar_chart(cat_df.set_index("category")["total_revenue"])
+    else:
+        st.info("No category data available.")
 
 # ========== PAGE: PRODUCTS ==========
 elif page == "Products":
@@ -270,7 +362,7 @@ elif page == "Inventory":
         qty = st.number_input("Quantity", min_value=0)
         unit_cost = st.number_input("Unit Cost (₦)", min_value=0.0)
         exp_date = st.date_input("Expiry Date", min_value=date.today())
-        loc = st.selectbox("Storage", ["warehouse", "shelf"])   # removed "cold_room"
+        loc = st.selectbox("Storage", ["warehouse", "shelf"])   # "cold_room" removed
         if st.form_submit_button("Add Stock"):
             prod = supabase.table("products").select("id").eq("sku", prod_sku).execute()
             if not prod.data:
@@ -307,7 +399,6 @@ elif page == "Sales Ledger":
             if not prod.data:
                 st.error("Product not found")
             else:
-                # Check stock existence quickly (optional, atomic function will also check)
                 stock = get_current_stock(prod.data[0]["id"])
                 if stock < qty:
                     st.error(f"Insufficient stock. Only {stock} units available.")
@@ -351,10 +442,10 @@ elif page == "Risk & FEFO":
         st.info("No inventory data.")
         st.stop()
     risk_data = []
-    today = date.today()
+    today_d = date.today()
     for item in inv:
         product = item.get("products") or {}
-        days_to_expiry = (datetime.strptime(item["expiry_date"], "%Y-%m-%d").date() - today).days
+        days_to_expiry = (datetime.strptime(item["expiry_date"], "%Y-%m-%d").date() - today_d).days
         if days_to_expiry <= 0:
             expiry_score = 100
         elif days_to_expiry <= 7:
