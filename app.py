@@ -101,11 +101,18 @@ def send_monthly_report():
         body = f"No sales recorded in {last_month_start.strftime('%B %Y')}."
     else:
         df = pd.DataFrame(sales)
+        
+        # --- FIX: Extract the product name string from the relation dictionary ---
+        df["product_name"] = df["products"].apply(lambda x: x["name"] if isinstance(x, dict) and "name" in x else "Unknown")
+        
         total_rev = df["total_revenue"].sum()
         total_cogs = df["total_cogs"].sum()
         total_profit = df["profit"].sum()
         margin = (total_profit / total_rev * 100) if total_rev else 0
-        prod_summary = df.groupby("products")["quantity"].sum().to_string()
+        
+        # --- FIX: Group by the new string column instead of the dictionary column ---
+        prod_summary = df.groupby("product_name")["quantity"].sum().to_string()
+        
         body = f"""
         Monthly Report – {last_month_start.strftime('%B %Y')}
         ============================================
