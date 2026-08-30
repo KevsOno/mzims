@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from .core.config import settings
-from .core.security import add_security_headers, SecurityHeadersMiddleware
+from .core.security import SecurityHeadersMiddleware   # ← only import the middleware class
 from .routers import products, orders, webhooks, geo, requests, auth
 
 # Configure logging
@@ -13,10 +13,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: verify Supabase connection etc.
     logger.info("Starting Muzoscent API...")
     yield
-    # Shutdown
     logger.info("Shutting down...")
 
 app = FastAPI(
@@ -29,7 +27,7 @@ app = FastAPI(
     openapi_url="/api/openapi.json"
 )
 
-# CORS – allow frontend and mobile apps
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL, "https://*.netlify.app", "capacitor://localhost", "http://localhost:*"],
@@ -38,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Trusted Host (optional, but good)
+# Trusted Host
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 
 # Security Headers (custom middleware)
