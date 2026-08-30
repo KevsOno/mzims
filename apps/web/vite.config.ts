@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [
@@ -10,7 +11,7 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: false,
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html}'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.paystack\.co\/.*/i,
@@ -32,21 +33,9 @@ export default defineConfig({
       }
     })
   ],
-  build: {
-    rollupOptions: {
-      input: {
-        main: 'index.html'
-      }
-    }
-  },
   resolve: {
     alias: {
-      '@': '/src'
-    }
-  }
-});  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src')
+      '@': resolve(__dirname, 'src')
     }
   }
 });
