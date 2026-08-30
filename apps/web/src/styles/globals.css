@@ -4,139 +4,168 @@
 
 @layer base {
   :root {
-    /* Brand colors */
     --color-primary: #43408C;
-    --color-primary-dark: #332E6E;
+    --color-primary-dark: #2D2A6E;
     --color-primary-light: #6A67A8;
-    --color-secondary: #C9A96A;
-    --color-background: #FAF9F6;
-    --color-background-white: #FFFFFF;
-    --color-text: #1A1A1A;
-    --color-text-muted: #4A4A4A;
-    --color-border: #E5E0D8;
-    --color-success: #2D7D46;
-    --color-error: #B33A3A;
-    --color-warning: #B8860B;
+    --color-gold: #C9A96A;
+    --color-gold-light: #E8D5A3;
+    --color-gold-dark: #A8894A;
+    --color-ivory: #FAF9F6;
+    --color-charcoal: #1A1A1A;
+    --color-dark-grey: #2D2D2D;
+    --color-mid-grey: #4A4A4A;
+    --color-light-grey: #E5E0D8;
 
-    /* Typography */
     --font-serif: 'Playfair Display', Georgia, serif;
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
-    /* Spacing */
-    --spacing-1: 4px;
-    --spacing-2: 8px;
-    --spacing-3: 12px;
-    --spacing-4: 16px;
-    --spacing-6: 24px;
-    --spacing-8: 32px;
-    --spacing-12: 48px;
-    --spacing-16: 64px;
-    --spacing-20: 80px;
+    --shadow-sm: 0 2px 8px rgba(67, 64, 140, 0.08);
+    --shadow-md: 0 8px 24px rgba(67, 64, 140, 0.12);
+    --shadow-lg: 0 16px 48px rgba(67, 64, 140, 0.15);
+    --shadow-gold: 0 8px 24px rgba(201, 169, 106, 0.2);
+  }
 
-    /* Radii */
-    --radius-sm: 4px;
-    --radius-md: 8px;
-    --radius-lg: 16px;
-    --radius-full: 9999px;
-
-    /* Shadows */
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-    --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
   }
 
   html {
     scroll-behavior: smooth;
-  }
-
-  body {
-    font-family: var(--font-sans);
-    background-color: var(--color-background);
-    color: var(--color-text);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-ivory);
+    color: var(--color-charcoal);
+    line-height: 1.6;
+  }
+
   h1, h2, h3, h4, h5 {
     font-family: var(--font-serif);
-    font-weight: 600;
     letter-spacing: -0.02em;
   }
 
-  a {
-    color: var(--color-primary);
-    text-decoration: none;
-  }
-
-  .brand-serif {
-    font-family: var(--font-serif);
-  }
-
-  .brand-sans {
-    font-family: var(--font-sans);
-  }
-
-  .container {
-    max-width: 1280px;
-    margin-left: auto;
-    margin-right: auto;
-    padding-left: var(--spacing-4);
-    padding-right: var(--spacing-4);
-  }
-
-  @media (min-width: 768px) {
-    .container {
-      padding-left: var(--spacing-8);
-      padding-right: var(--spacing-8);
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .container {
-      padding-left: var(--spacing-12);
-      padding-right: var(--spacing-12);
-    }
+  ::selection {
+    background: var(--color-gold);
+    color: white;
   }
 }
 
 @layer components {
-  .btn-primary {
-    @apply bg-[#43408C] text-white px-6 py-3 rounded-md font-medium transition hover:bg-[#332E6E] focus:outline-none focus:ring-2 focus:ring-[#43408C] focus:ring-offset-2;
+  /* Luxury Button */
+  .btn-luxury {
+    @apply relative overflow-hidden px-8 py-4 rounded-full font-medium transition-all duration-300;
+    background: linear-gradient(135deg, #C9A96A 0%, #E8D5A3 50%, #A8894A 100%);
+    color: white;
+    box-shadow: 0 4px 16px rgba(201, 169, 106, 0.3);
+  }
+  .btn-luxury:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 32px rgba(201, 169, 106, 0.4);
+  }
+  .btn-luxury:active {
+    transform: scale(0.98);
   }
 
-  .btn-secondary {
-    @apply border border-[#43408C] text-[#43408C] px-6 py-3 rounded-md font-medium transition hover:bg-[#43408C] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#43408C] focus:ring-offset-2;
+  /* Glass Card */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    border-radius: 24px;
   }
 
-  .btn-outline-gold {
-    @apply border border-[#C9A96A] text-[#C9A96A] px-6 py-3 rounded-md font-medium transition hover:bg-[#C9A96A] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#C9A96A] focus:ring-offset-2;
+  .glass-card-dark {
+    background: rgba(26, 26, 46, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    border-radius: 24px;
   }
 
-  .card {
-    @apply bg-white rounded-lg shadow-md overflow-hidden transition hover:shadow-lg;
+  /* Product Card */
+  .product-card {
+    @apply bg-white rounded-2xl overflow-hidden transition-all duration-500;
+    box-shadow: var(--shadow-sm);
+  }
+  .product-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-lg);
+  }
+  .product-card .image-wrapper {
+    @apply relative aspect-square overflow-hidden bg-gradient-to-br from-[#FAF9F6] to-[#F5F0E8];
+  }
+  .product-card .image-wrapper img {
+    @apply w-full h-full object-contain transition-transform duration-700;
+  }
+  .product-card:hover .image-wrapper img {
+    transform: scale(1.08) rotate(-2deg);
+  }
+  .product-card .badge {
+    @apply absolute top-4 right-4 px-4 py-1 rounded-full text-xs font-medium tracking-wider uppercase;
+    background: linear-gradient(135deg, #C9A96A, #A8894A);
+    color: white;
+    box-shadow: 0 4px 12px rgba(201, 169, 106, 0.3);
   }
 
-  .input-field {
-    @apply w-full rounded-md border border-[#E5E0D8] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#43408C] focus:border-transparent;
+  /* Gold accent divider */
+  .gold-divider {
+    @apply w-16 h-0.5 mx-auto;
+    background: linear-gradient(90deg, transparent, #C9A96A, transparent);
   }
 
-  .label {
-    @apply block text-sm font-medium text-[#4A4A4A] mb-1;
+  /* Luxury input */
+  .input-luxury {
+    @apply w-full px-5 py-3 rounded-full bg-white/10 border border-white/20 focus:outline-none focus:ring-2 focus:ring-[#C9A96A] focus:border-transparent;
+    backdrop-filter: blur(4px);
+    transition: all 0.3s ease;
+  }
+  .input-luxury:focus {
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 0 4px rgba(201, 169, 106, 0.1);
+  }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .animate-fade-up {
+    animation: fadeUp 0.8s ease-out forwards;
+  }
+  .animate-float {
+    animation: float 4s ease-in-out infinite;
+  }
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* Page transitions */
+  .page-enter {
+    animation: fadeUp 0.6s ease-out both;
   }
     }
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-up {
-  animation: fadeUp 0.6s ease-out both;
-}
-
-/* Apply to hero and sections if you want, e.g., add className="animate-fade-up" */
