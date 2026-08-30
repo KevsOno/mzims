@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Menu, X, LogOut, Search } from 'lucide-react';
+import { ShoppingCart, Menu, X, LogOut } from 'lucide-react'; // these work
 import { useCart } from '../store/CartContext';
 import { useAuth } from '../store/AuthContext';
 
@@ -17,6 +17,14 @@ const Header: React.FC = () => {
     navigate('/');
   };
 
+  // Inline search icon
+  const SearchIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+
   return (
     <header className="sticky top-0 z-50">
       <div className="glass-card rounded-none border-b border-white/20">
@@ -32,7 +40,7 @@ const Header: React.FC = () => {
             <Link to="/products" className="text-sm text-[#1A1A1A] hover:text-[#43408C] transition border-b-2 border-transparent hover:border-[#C9A96A] pb-1">Shop</Link>
             <Link to="/request-scent" className="text-sm text-[#1A1A1A] hover:text-[#43408C] transition border-b-2 border-transparent hover:border-[#C9A96A] pb-1">Request</Link>
             <button className="text-[#4A4A4A] hover:text-[#43408C] transition">
-              <Search size={20} />
+              <SearchIcon />
             </button>
             {user ? (
               <button onClick={handleSignOut} className="text-sm text-[#1A1A1A] hover:text-[#43408C] transition flex items-center gap-1">
