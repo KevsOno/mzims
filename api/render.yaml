@@ -3,6 +3,7 @@ services:
     name: muzoscent-api
     runtime: python
     plan: free
+    rootDirectory: api   # <-- tells Render to treat api/ as the project root
     envVars:
       - key: SUPABASE_URL
         sync: false
