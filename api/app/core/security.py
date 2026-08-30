@@ -5,7 +5,6 @@ from starlette.responses import Response
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        # Apply security headers
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.paystack.com https://*.monnify.com https://*.google-analytics.com https://*.googletagmanager.com; "
@@ -23,6 +22,5 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(self), camera=(), microphone=(), payment=()"
-        # Remove server identification
         response.headers["Server"] = "Muzoscent"
         return response
