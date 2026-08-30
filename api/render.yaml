@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: muzoscent-api
+    runtime: python
+    plan: free
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: MONNIFY_API_KEY
+        sync: false
+      - key: MONNIFY_SECRET_KEY
+        sync: false
+      - key: MONNIFY_CONTRACT_CODE
+        sync: false
+      - key: MAILCHIMP_API_KEY
+        sync: false
+      - key: MAILCHIMP_SERVER_PREFIX
+        sync: false
+      - key: MAILCHIMP_LIST_ID
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: INTERNAL_NOTIFICATION_EMAIL
+        sync: false
+      - key: NOMINATIM_USER_AGENT
+        sync: false
+      - key: NOMINATIM_EMAIL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
