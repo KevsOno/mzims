@@ -9,6 +9,7 @@ import PaymentVerify from './pages/PaymentVerify';
 import FragranceRequest from './pages/FragranceRequest';
 import { CartProvider } from './store/CartContext';
 import { AuthProvider } from './store/AuthContext';
+import OrderTracking from './pages/OrderTracking';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/payment/verify" element={<PaymentVerify />} />
               <Route path="/request-scent" element={<FragranceRequest />} />
+              <Route path="/track/:reference" element={<OrderTracking />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>
