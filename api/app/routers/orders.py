@@ -13,6 +13,13 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+@router.get("/track/{reference}")
+async def track_order(reference: str, supabase: Client = Depends(get_supabase_client)):
+    resp = supabase.table("orders").select("*, order_items(*, products(name))").eq("gateway_reference", reference).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return resp.data[0]
+    
 @router.post("/", response_model=dict)
 async def create_order(
     order_data: OrderCreate,
