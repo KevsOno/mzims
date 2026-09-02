@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from .core.config import settings
+from .routers import chat   # add this import
 from .core.security import SecurityHeadersMiddleware
 from .routers import products, orders, webhooks, geo, requests, auth
 
@@ -57,6 +58,7 @@ app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 app.include_router(geo.router, prefix="/api/v1/geo", tags=["geo"])
 app.include_router(requests.router, prefix="/api/v1/requests", tags=["requests"])
+app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
 
 @app.get("/")
 async def root():
