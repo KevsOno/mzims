@@ -4,10 +4,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from .core.config import settings
-from .core.security import SecurityHeadersMiddleware   # ← only import the middleware class
+from .core.security import SecurityHeadersMiddleware
 from .routers import products, orders, webhooks, geo, requests, auth
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -27,20 +26,29 @@ app = FastAPI(
     openapi_url="/api/openapi.json"
 )
 
-# CORS
+# 1. Custom Security Headers (Runs LAST in execution chain)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 2. Trusted Host
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+
+# 3. CORS Middleware (Added LAST in code so it runs FIRST on incoming requests)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "https://muzoscents.netlify.app", "capacitor://localhost", "http://localhost:*"],
+    allow_origins=[
+        settings.FRONTEND_URL.rstrip("/"),  # Ensure no trailing slash
+        "https://muzoscents.netlify.app",
+        "https://muzoscent.netlify.app",    # Listed both spellings just in case
+        "capacitor://localhost",
+        "http://localhost:5173",            # Use explicit local ports
+        "http://localhost:3000",
+    ],
+    # Optional: If you need localhost dynamic ports, use regex instead of wildcards:
+    # allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Trusted Host
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
-
-# Security Headers (custom middleware)
-app.add_middleware(SecurityHeadersMiddleware)
 
 # Routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
