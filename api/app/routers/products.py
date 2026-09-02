@@ -6,7 +6,7 @@ from ..models.product import ProductResponse
 
 router = APIRouter()
 
-@router.get("/", response_model=List[ProductResponse])
+@router.get("", response_model=List[ProductResponse])
 async def list_products(
     category: Optional[str] = None,
     scent_family: Optional[str] = None,
