@@ -44,7 +44,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 # Routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(products.router, prefix="/api/v1/products", tags=["products"])
+app.include_router(products.router, prefix="/api/v1/products/", tags=["products"])
 app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 app.include_router(geo.router, prefix="/api/v1/geo", tags=["geo"])
