@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ShoppingCart, ArrowLeft, Star } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { useCart } from '../store/CartContext';
 import { formatCurrency } from '../lib/currency';
@@ -13,17 +14,15 @@ const ProductDetail: React.FC = () => {
   const { addItem } = useCart();
 
   useEffect(() => {
-    // 1. Strict guardrail against bad slug values
+    // Strict guardrail against bad slug values
     if (!slug || slug === 'null' || slug === 'undefined' || slug.trim() === '') {
       setLoading(false);
       return;
     }
 
-    // 2. Prevent race conditions on unmounted components
     let isMounted = true;
     setLoading(true);
 
-    // 3. Encoded URL path
     api.get(`/products/slug/${encodeURIComponent(slug)}`)
       .then((res) => {
         if (isMounted) setProduct(res.data);
@@ -43,15 +42,29 @@ const ProductDetail: React.FC = () => {
 
   const handleAddToCart = () => {
     if (!product) return;
+
+    const productSlug = product.slug && product.slug !== 'null' && product.slug !== 'undefined'
+      ? product.slug
+      : product.id; // fallback to ID
+
     addItem({
       product_id: product.id,
       name: product.name,
-      slug: product.slug,
+      slug: productSlug,
       quantity,
       unit_price: product.selling_price,
       image: product.images?.[0] || '',
       sku: product.sku,
     });
+
+    // Show success toast
+    toast.success(`${product.name} added to cart! 🛒`, {
+      duration: 3000,
+      icon: '✅',
+    });
+
+    // Optional: reset quantity to 1
+    setQuantity(1);
   };
 
   if (loading) return <div className="container py-12 text-center">Loading product...</div>;
@@ -90,7 +103,7 @@ const ProductDetail: React.FC = () => {
 
           <p className="mt-4 text-[#4A4A4A]">{product.description || 'A captivating fragrance that embodies elegance and style.'}</p>
 
-          <div className="mt-6 flex items-center gap-4">
+          <div className="mt-6 flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center border border-[#E5E0D8] rounded-md">
               <button
                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
@@ -108,14 +121,14 @@ const ProductDetail: React.FC = () => {
             </div>
             <button
               onClick={handleAddToCart}
-              className="flex-1 bg-[#43408C] text-white px-6 py-3 rounded-md hover:bg-[#332E6E] transition flex items-center justify-center gap-2"
+              className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2"
             >
               <ShoppingCart size={20} /> Add to Cart
             </button>
           </div>
 
           <div className="mt-6 text-sm text-[#4A4A4A] border-t border-[#E5E0D8] pt-4">
-            <p>SKU: {product.sku}</p>
+            <p>SKU: {product.sku || 'N/A'}</p>
             <p className="mt-1">Availability: {product.current_stock > 0 ? 'In Stock' : 'Out of Stock'}</p>
           </div>
         </div>
