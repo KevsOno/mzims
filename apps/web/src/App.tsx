@@ -20,6 +20,8 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/products" element={<Products />} />
+              {/* Accept both plural and singular product detail paths */}
+              <Route path="/products/:slug" element={<ProductDetail />} />
               <Route path="/product/:slug" element={<ProductDetail />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
