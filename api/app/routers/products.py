@@ -52,6 +52,11 @@ async def get_product(product_id: int, supabase: Client = Depends(get_supabase_c
 
 @router.get("/slug/{slug}", response_model=ProductResponse)
 async def get_product_by_slug(slug: str, supabase: Client = Depends(get_supabase_client)):
+    # ----- STRICT GUARD -----
+    # Reject literal "null", "undefined", empty, or whitespace-only slugs
+    if not slug or slug in ("null", "undefined") or slug.strip() == "":
+        raise HTTPException(status_code=400, detail="Invalid slug")
+    
     resp = supabase.table("products").select("*").eq("slug", slug).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Product not found")
