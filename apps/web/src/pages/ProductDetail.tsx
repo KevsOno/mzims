@@ -13,7 +13,13 @@ const ProductDetail: React.FC = () => {
   const { addItem } = useCart();
 
   useEffect(() => {
-    if (!slug) return;
+    // Prevent API request if slug is missing, undefined, or literally the string "null"
+    if (!slug || slug === 'null' || slug === 'undefined') {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     api.get(`/products/slug/${slug}`)
       .then(res => setProduct(res.data))
       .catch(console.error)
@@ -33,7 +39,7 @@ const ProductDetail: React.FC = () => {
     });
   };
 
-  if (loading) return <div className="container py-12 text-center">Loading...</div>;
+  if (loading) return <div className="container py-12 text-center">Loading product...</div>;
   if (!product) return <div className="container py-12 text-center">Product not found.</div>;
 
   return (
@@ -57,11 +63,9 @@ const ProductDetail: React.FC = () => {
           <h1 className="text-3xl font-serif font-bold text-[#43408C]">{product.name}</h1>
           <p className="text-sm text-[#4A4A4A] mt-1">{product.scent_family || 'Fragrance'} · {product.gender || 'Unisex'}</p>
           <div className="flex items-center gap-1 mt-2">
-            <Star size={16} className="fill-[#C9A96A] text-[#C9A96A]" />
-            <Star size={16} className="fill-[#C9A96A] text-[#C9A96A]" />
-            <Star size={16} className="fill-[#C9A96A] text-[#C9A96A]" />
-            <Star size={16} className="fill-[#C9A96A] text-[#C9A96A]" />
-            <Star size={16} className="fill-[#C9A96A] text-[#C9A96A]" />
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} size={16} className="fill-[#C9A96A] text-[#C9A96A]" />
+            ))}
             <span className="text-sm text-[#4A4A4A] ml-2">(5.0)</span>
           </div>
 
