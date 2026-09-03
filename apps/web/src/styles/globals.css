@@ -56,6 +56,31 @@
 }
 
 @layer components {
+  /* Buttons */
+  .btn-primary {
+    @apply bg-[#43408C] text-white px-6 py-3 rounded-md font-medium transition-all duration-200;
+    box-shadow: 0 4px 12px rgba(67, 64, 140, 0.25);
+  }
+  .btn-primary:hover {
+    @apply bg-[#332E6E] transform -translate-y-0.5;
+    box-shadow: 0 8px 24px rgba(67, 64, 140, 0.35);
+  }
+  .btn-primary:active {
+    @apply transform scale-95;
+  }
+  .btn-primary:disabled {
+    @apply opacity-60 cursor-not-allowed transform-none;
+  }
+
+  .btn-secondary {
+    @apply bg-[#C9A96A] text-white px-6 py-3 rounded-md font-medium transition-all duration-200;
+    box-shadow: 0 4px 12px rgba(201, 169, 106, 0.3);
+  }
+  .btn-secondary:hover {
+    @apply bg-[#A8894A] transform -translate-y-0.5;
+    box-shadow: 0 8px 24px rgba(201, 169, 106, 0.4);
+  }
+
   .btn-luxury {
     @apply relative overflow-hidden px-8 py-4 rounded-full font-medium transition-all duration-300;
     background: linear-gradient(135deg, #C9A96A 0%, #E8D5A3 50%, #A8894A 100%);
@@ -70,6 +95,29 @@
     transform: scale(0.98);
   }
 
+  /* Inputs & Labels */
+  .input-field {
+    @apply w-full px-4 py-2 border border-[#E5E0D8] rounded-md bg-white transition-colors duration-200;
+    @apply focus:outline-none focus:ring-2 focus:ring-[#43408C] focus:border-transparent;
+  }
+  .input-field:focus {
+    @apply bg-white shadow-sm;
+  }
+
+  .input-luxury {
+    @apply w-full px-5 py-3 rounded-full bg-white/80 border border-[#E5E0D8] focus:outline-none focus:ring-2 focus:ring-[#C9A96A] focus:border-transparent transition-all duration-300;
+    backdrop-filter: blur(4px);
+  }
+  .input-luxury:focus {
+    @apply bg-white;
+    box-shadow: 0 0 0 4px rgba(201, 169, 106, 0.15);
+  }
+
+  .label {
+    @apply block text-sm font-medium text-[#4A4A4A] mb-1;
+  }
+
+  /* Cards & Structural Components */
   .glass-card {
     background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(12px);
@@ -117,16 +165,7 @@
     background: linear-gradient(90deg, transparent, #C9A96A, transparent);
   }
 
-  /* Fixed for light backgrounds with glass effect */
-  .input-luxury {
-    @apply w-full px-5 py-3 rounded-full bg-white/80 border border-[#E5E0D8] focus:outline-none focus:ring-2 focus:ring-[#C9A96A] focus:border-transparent transition-all duration-300;
-    backdrop-filter: blur(4px);
-  }
-  .input-luxury:focus {
-    @apply bg-white;
-    box-shadow: 0 0 0 4px rgba(201, 169, 106, 0.15);
-  }
-
+  /* Animations */
   @keyframes fadeUp {
     from {
       opacity: 0;
@@ -153,6 +192,7 @@
     animation: fadeUp 0.6s ease-out both;
   }
 
+  /* Layout */
   .container {
     max-width: 1280px;
     margin-left: auto;
