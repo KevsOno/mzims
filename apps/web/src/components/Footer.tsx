@@ -75,19 +75,19 @@ const Footer: React.FC = () => {
       <div className="container">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
           <div>
-            <h3 className="font-serif text-2xl font-bold text-white mb-3">MUZOSCENT</h3>
+            <h3 className="font-serif text-2xl font-bold text-white mb-3">MUZOSCENTS</h3>
             <p className="text-sm text-white/50">Where fragrance meets style.</p>
             <div className="flex gap-4 mt-4">
-              <a href="https://instagram.com/muzoscent" target="_blank" rel="noopener noreferrer" className="text-white/40 hover:text-[#C9A96A] transition">
+              <a href="https://instagram.com/muzoscents" target="_blank" rel="noopener noreferrer" className="text-white/40 hover:text-[#C9A96A] transition">
                 <InstagramIcon />
               </a>
-              <a href="https://facebook.com/muzoscent" target="_blank" rel="noopener noreferrer" className="text-white/40 hover:text-[#C9A96A] transition">
+              <a href="https://facebook.com/muzoscents" target="_blank" rel="noopener noreferrer" className="text-white/40 hover:text-[#C9A96A] transition">
                 <FacebookIcon />
               </a>
-              <a href="https://twitter.com/muzoscent" target="_blank" rel="noopener noreferrer" className="text-white/40 hover:text-[#C9A96A] transition">
+              <a href="https://twitter.com/muzoscents" target="_blank" rel="noopener noreferrer" className="text-white/40 hover:text-[#C9A96A] transition">
                 <TwitterIcon />
               </a>
-              <a href="https://pinterest.com/muzoscent" target="_blank" rel="noopener noreferrer" className="text-white/40 hover:text-[#C9A96A] transition">
+              <a href="https://pinterest.com/muzoscents" target="_blank" rel="noopener noreferrer" className="text-white/40 hover:text-[#C9A96A] transition">
                 <PinterestIcon />
               </a>
             </div>
@@ -116,7 +116,7 @@ const Footer: React.FC = () => {
               </li>
               <li className="flex items-start gap-3">
                 <span className="text-[#C9A96A]"><MailIcon /></span>
-                <span>hello@muzoscent.com</span>
+                <span>faithmamuzo@gmail.com</span>
               </li>
             </ul>
           </div>
