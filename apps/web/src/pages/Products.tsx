@@ -165,22 +165,30 @@ const Products: React.FC = () => {
             <p className="text-center text-[#4A4A4A] py-12">No products found.</p>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {products.map((product) => (
-                <Link to={`/product/${product.slug}`} key={product.id} className="card group">
-                  <div className="aspect-square bg-[#FAF9F6] flex items-center justify-center p-4">
-                    {product.images && product.images.length > 0 ? (
-                      <img src={product.images[0]} alt={product.name} className="w-full h-full object-contain group-hover:scale-105 transition" />
-                    ) : (
-                      <div className="text-[#C9A96A] text-4xl">🌸</div>
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <h3 className="font-semibold text-sm truncate">{product.name}</h3>
-                    <p className="text-xs text-[#4A4A4A]">{product.scent_family || 'Fragrance'}</p>
-                    <p className="text-[#43408C] font-bold mt-1">₦{Number(product.selling_price).toLocaleString()}</p>
-                  </div>
-                </Link>
-              ))}
+              {products.map((product) => {
+                // Fallback if slug is missing in database (uses ID)
+                const productSlug = product.slug || product.id;
+                return (
+                  <Link
+                    to={`/products/${productSlug}`}
+                    key={product.id}
+                    className="card group"
+                  >
+                    <div className="aspect-square bg-[#FAF9F6] flex items-center justify-center p-4">
+                      {product.images && product.images.length > 0 ? (
+                        <img src={product.images[0]} alt={product.name} className="w-full h-full object-contain group-hover:scale-105 transition" />
+                      ) : (
+                        <div className="text-[#C9A96A] text-4xl">🌸</div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-semibold text-sm truncate">{product.name}</h3>
+                      <p className="text-xs text-[#4A4A4A]">{product.scent_family || 'Fragrance'}</p>
+                      <p className="text-[#43408C] font-bold mt-1">₦{Number(product.selling_price).toLocaleString()}</p>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
