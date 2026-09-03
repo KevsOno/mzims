@@ -13,17 +13,32 @@ const ProductDetail: React.FC = () => {
   const { addItem } = useCart();
 
   useEffect(() => {
-    // Prevent API request if slug is missing, undefined, or literally the string "null"
-    if (!slug || slug === 'null' || slug === 'undefined') {
+    // 1. Strict guardrail against bad slug values
+    if (!slug || slug === 'null' || slug === 'undefined' || slug.trim() === '') {
       setLoading(false);
       return;
     }
 
+    // 2. Prevent race conditions on unmounted components
+    let isMounted = true;
     setLoading(true);
-    api.get(`/products/slug/${slug}`)
-      .then(res => setProduct(res.data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+
+    // 3. Encoded URL path
+    api.get(`/products/slug/${encodeURIComponent(slug)}`)
+      .then((res) => {
+        if (isMounted) setProduct(res.data);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch product:', err);
+        if (isMounted) setProduct(null);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [slug]);
 
   const handleAddToCart = () => {
