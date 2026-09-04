@@ -1,45 +1,68 @@
-from fastapi import APIRouter, Depends, HTTPException
-from supabase import Client
-from pydantic import BaseModel
+# api/app/core/auth.py
+import logging
 from typing import Optional
-from app.core.db import get_supabase_client
-from app.core.auth import get_current_user
 
-router = APIRouter(prefix="/profile", tags=["profile"])
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from supabase import Client
 
-class ProfileUpdate(BaseModel):
-    full_name: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
+from .config import settings
+from .db import get_supabase_client
 
-@router.get("/")
-async def get_profile(
-    current_user = Depends(get_current_user),
+logger = logging.getLogger(__name__)
+security = HTTPBearer(auto_error=False)
+
+
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     supabase: Client = Depends(get_supabase_client)
-):
-    resp = supabase.table("profiles").select("*").eq("id", current_user.id).execute()
-    if not resp.data:
-        # Create a profile if it doesn't exist (should happen via trigger, but just in case)
-        new_profile = {"id": current_user.id}
-        supabase.table("profiles").insert(new_profile).execute()
-        return new_profile
-    return resp.data[0]
+) -> Optional[dict]:
+    """Optional authentication – returns customer dict if valid JWT, else None."""
+    if not credentials:
+        return None
+    try:
+        user = supabase.auth.get_user(credentials.credentials)
+        if not user or not user.user:
+            return None
 
-@router.put("/")
-async def update_profile(
-    data: ProfileUpdate,
-    current_user = Depends(get_current_user),
+        resp = (
+            supabase.table("customers")
+            .select("*")
+            .eq("supabase_auth_user_id", user.user.id)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+    except Exception as e:
+        logger.warning(f"Auth optional error: {e}")
+        return None
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     supabase: Client = Depends(get_supabase_client)
-):
-    # Remove None values
-    update_data = {k: v for k, v in data.dict().items() if v is not None}
-    if not update_data:
-        raise HTTPException(status_code=400, detail="No fields to update")
-    update_data["updated_at"] = "now()"  # if you want to track updates
-    resp = supabase.table("profiles").update(update_data).eq("id", current_user.id).execute()
-    if not resp.data:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    return resp.data[0]
+) -> dict:
+    """Mandatory authentication – raises 401 if no valid token or customer not found."""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        user = supabase.auth.get_user(credentials.credentials)
+        if not user or not user.user:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        resp = (
+            supabase.table("customers")
+            .select("*")
+            .eq("supabase_auth_user_id", user.user.id)
+            .execute()
+        )
+        if not resp.data:
+            raise HTTPException(status_code=404, detail="Customer profile not found")
+
+        return resp.data[0]
+    except Exception as e:
+        logger.error(f"Auth error: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
