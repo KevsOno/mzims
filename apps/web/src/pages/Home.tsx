@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles, Star, ShoppingBag, ShieldCheck, Truck, Gift } from 'lucide-react';
 import api from '../lib/api';
@@ -12,17 +12,36 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/products?limit=8')
+    api.get('/products')
       .then(res => setFeatured(res.data))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
-  const categories = ['All', 'Woody & Oriental', 'Floral & Fresh', 'Gourmand', 'Unisex'];
+  // Dynamically extract categories from returned products
+  const categories = useMemo(() => {
+    const extracted = Array.from(
+      new Set(
+        featured
+          .map((p) => p.category || p.scent_family)
+          .filter((cat): cat is string => Boolean(cat) && typeof cat === 'string')
+          .map((cat) => cat.trim())
+      )
+    );
+    return ['All', ...extracted];
+  }, [featured]);
 
-  const filteredProducts = activeCategory === 'All' 
-    ? featured 
-    : featured.filter(p => p.scent_family?.toLowerCase().includes(activeCategory.toLowerCase().split(' ')[0]));
+  // Filter products matching category or scent family
+  const filteredProducts = useMemo(() => {
+    if (activeCategory === 'All') return featured;
+
+    const lowerCategory = activeCategory.toLowerCase();
+    return featured.filter((p) => {
+      const productCategory = p.category?.toLowerCase() || '';
+      const scentFamily = p.scent_family?.toLowerCase() || '';
+      return productCategory.includes(lowerCategory) || scentFamily.includes(lowerCategory);
+    });
+  }, [featured, activeCategory]);
 
   return (
     <div className="page-enter">
@@ -116,10 +135,10 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Featured Products Section with Fixed Sticky Navigation Bar Offset */}
+      {/* Featured Products Section */}
       <section className="container py-14 px-4">
         
-        {/* Sticky Header & Filter Bar adjusted to sit below the main header */}
+        {/* Dynamic Category Pill Filters */}
         <div className="sticky top-16 md:top-20 z-20 bg-white/95 backdrop-blur-md py-4 mb-8 border-b border-gray-100 shadow-sm transition-all">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -127,7 +146,7 @@ const Home: React.FC = () => {
               <div className="gold-divider mt-1" />
             </div>
 
-            {/* Scent Family Category Filter */}
+            {/* Dynamic Scent/Category Filter */}
             <div className="flex flex-wrap gap-2">
               {categories.map((cat) => (
                 <button
@@ -162,13 +181,23 @@ const Home: React.FC = () => {
                 </div>
               </div>
             ))
+          ) : filteredProducts.length === 0 ? (
+            <div className="col-span-full text-center py-12 bg-white rounded-xl border border-gray-100">
+              <p className="text-gray-500 text-sm">No fragrances found under this category.</p>
+              <button
+                onClick={() => setActiveCategory('All')}
+                className="mt-3 text-xs bg-[#43408C] text-white px-4 py-2 rounded-md hover:bg-[#2D2A6E] transition"
+              >
+                View All Fragrances
+              </button>
+            </div>
           ) : (
             filteredProducts.slice(0, 8).map((product: any) => (
               <div
                 key={product.id}
                 className="group relative rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm hover:shadow-md transition duration-300 flex flex-col justify-between"
               >
-                <Link to={`/product/${product.slug}`} className="block">
+                <Link to={`/products/${product.slug || product.id}`} className="block">
                   <div className="image-wrapper relative h-64 bg-gray-50 overflow-hidden">
                     {product.images && product.images.length > 0 ? (
                       <img 
@@ -189,9 +218,9 @@ const Home: React.FC = () => {
                 <div className="p-4 flex-1 flex flex-col justify-between">
                   <div>
                     <span className="text-[11px] uppercase tracking-wider text-[#C9A96A] font-semibold">
-                      {product.scent_family || 'Perfume'}
+                      {product.scent_family || product.category || 'Perfume'}
                     </span>
-                    <Link to={`/product/${product.slug}`}>
+                    <Link to={`/products/${product.slug || product.id}`}>
                       <h3 className="font-serif text-base font-semibold text-[#1A1A1A] group-hover:text-[#43408C] transition line-clamp-1 mt-0.5">
                         {product.name}
                       </h3>
