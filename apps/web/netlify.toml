@@ -10,7 +10,7 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.paystack.com https://*.monnify.com https://*.google-analytics.com https://*.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*.supabase.co https://*.google-analytics.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://api.paystack.co https://api.monnify.com https://nominatim.openstreetmap.org https://*.mailchimp.com; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none';"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.paystack.com https://*.monnify.com https://*.google-analytics.com https://*.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*.supabase.co https://*.google-analytics.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://muzoscent.onrender.com https://*.supabase.co https://api.paystack.co https://api.monnify.com https://nominatim.openstreetmap.org https://*.mailchimp.com; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none';"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "DENY"
