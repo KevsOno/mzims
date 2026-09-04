@@ -26,7 +26,7 @@ const Home: React.FC = () => {
 
   return (
     <div className="page-enter">
-      {/* Optimized Compact Hero Section */}
+      {/* Hero Section */}
       <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-center justify-center overflow-hidden py-12 md:py-16">
         <div className="absolute inset-0 bg-gradient-to-br from-[#43408C] via-[#2D2A6E] to-[#1A1A2E]">
           <div className="absolute top-10 left-10 w-72 h-72 bg-[#C9A96A]/10 rounded-full blur-3xl animate-float" />
@@ -36,7 +36,6 @@ const Home: React.FC = () => {
         <div className="container relative z-10 px-4">
           <div className="grid lg:grid-cols-12 gap-8 items-center">
             
-            {/* Left Content */}
             <div className="lg:col-span-7 text-center lg:text-left">
               <div className="inline-flex items-center gap-2 mb-4 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
                 <Sparkles size={14} className="text-[#C9A96A]" />
@@ -54,7 +53,6 @@ const Home: React.FC = () => {
                 Discover handcrafted niche fragrances and designer scents formulated for long-lasting impression.
               </p>
 
-              {/* Action Buttons */}
               <div className="mt-8 flex flex-wrap gap-4 justify-center lg:justify-start">
                 <Link to="/products" className="btn-luxury flex items-center gap-2 px-7 py-3.5 text-sm">
                   Explore Collection <ArrowRight size={18} />
@@ -64,7 +62,6 @@ const Home: React.FC = () => {
                 </Link>
               </div>
 
-              {/* Social Proof */}
               <div className="mt-8 pt-6 border-t border-white/10 flex items-center justify-center lg:justify-start gap-4">
                 <div className="flex -space-x-2">
                   <span className="w-8 h-8 rounded-full bg-[#C9A96A] flex items-center justify-center text-xs text-white font-bold border-2 border-[#2D2A6E]">4.9</span>
@@ -81,7 +78,6 @@ const Home: React.FC = () => {
               </div>
             </div>
 
-            {/* Right Hero Feature Badge / Visual */}
             <div className="hidden lg:col-span-5 lg:flex justify-center">
               <div className="relative w-80 h-96 rounded-2xl p-1 bg-gradient-to-b from-[#C9A96A]/40 to-transparent">
                 <div className="w-full h-full bg-white/10 backdrop-blur-md rounded-2xl p-6 flex flex-col justify-between border border-white/20">
@@ -120,29 +116,33 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Featured Products Section with Category Filters */}
+      {/* Featured Products Section with Sticky Navigation Bar */}
       <section className="container py-14 px-4">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
-          <div>
-            <h2 className="text-3xl md:text-4xl font-serif text-[#43408C]">Featured Fragrances</h2>
-            <div className="gold-divider mt-2" />
-          </div>
+        
+        {/* Sticky Header & Filter Bar */}
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md py-4 mb-8 border-b border-gray-100 shadow-sm transition-all">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-serif text-[#43408C]">Featured Fragrances</h2>
+              <div className="gold-divider mt-1" />
+            </div>
 
-          {/* Scent Family Category Filter */}
-          <div className="flex flex-wrap gap-2">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`text-xs px-4 py-2 rounded-full transition ${
-                  activeCategory === cat
-                    ? 'bg-[#43408C] text-white font-medium'
-                    : 'bg-gray-100 text-[#4A4A4A] hover:bg-gray-200'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+            {/* Scent Family Category Filter */}
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`text-xs px-4 py-2 rounded-full transition ${
+                    activeCategory === cat
+                      ? 'bg-[#43408C] text-white font-medium shadow-sm'
+                      : 'bg-gray-100 text-[#4A4A4A] hover:bg-gray-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -163,7 +163,7 @@ const Home: React.FC = () => {
               </div>
             ))
           ) : (
-            filteredProducts.slice(0, 4).map((product: any, index: number) => (
+            filteredProducts.slice(0, 8).map((product: any) => (
               <div
                 key={product.id}
                 className="group relative rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm hover:shadow-md transition duration-300 flex flex-col justify-between"
@@ -199,11 +199,9 @@ const Home: React.FC = () => {
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
-                    <div>
-                      <span className="text-lg font-bold text-[#43408C]">
-                        ₦{Number(product.selling_price).toLocaleString()}
-                      </span>
-                    </div>
+                    <span className="text-lg font-bold text-[#43408C]">
+                      ₦{Number(product.selling_price).toLocaleString()}
+                    </span>
 
                     <button
                       onClick={() => addToCart(product, 1)}
