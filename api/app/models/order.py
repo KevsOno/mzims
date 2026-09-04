@@ -1,50 +1,107 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List, Union
-from datetime import datetime
-from enum import Enum
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import Optional
+import uuid
 
-class OrderStatus(str, Enum):
-    PENDING = "pending"
-    PAID = "paid"
-    FULFILLED = "fulfilled"
-    FAILED = "failed"
-    STOCK_UNAVAILABLE = "stock_unavailable"
+# Import your database session dependency and SQLAlchemy models
+from ..database import get_db
+from ..models import Order, OrderItem, Customer, Address  # Your SQLAlchemy models
+from ..schemas.order import OrderCreate, OrderResponse    # Your updated Pydantic schemas
+from ..services.payment import initialize_payment       # Your Paystack/Monnify service
 
-class OrderItemBase(BaseModel):
-    product_id: int
-    quantity: int = Field(..., gt=0)
-    unit_price: float
+router = APIRouter(prefix="/orders", tags=["Orders"])
 
-class OrderItemCreate(OrderItemBase):
-    pass
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_order(
+    payload: OrderCreate,
+    db: Session = Depends(get_db)
+):
+    # -------------------------------------------------------------
+    # 1. Resolve or Create the Customer Record
+    # -------------------------------------------------------------
+    customer = None
 
-class OrderItemResponse(OrderItemBase):
-    id: int
-    order_id: int
-    created_at: datetime
+    # Try looking up by Supabase Auth User ID if passed as string UUID
+    if payload.customer_id and isinstance(payload.customer_id, str) and payload.customer_id != "0":
+        customer = db.query(Customer).filter(
+            Customer.supabase_auth_user_id == payload.customer_id
+        ).first()
 
-class OrderBase(BaseModel):
-    # Accepts either an integer DB ID or a Supabase UUID string
-    customer_id: Optional[Union[int, str]] = None
-    email: EmailStr
-    phone: str
-    address: str
-    street_address: Optional[str] = None
-    building_details: Optional[str] = None
-    landmark: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    total: float
-    currency: str = "NGN"
-    gateway: str  # "paystack" or "monnify"
-    gateway_reference: Optional[str] = None
-    status: OrderStatus = OrderStatus.PENDING
+    # Fallback: Look up by Email if customer not found yet
+    if not customer:
+        customer = db.query(Customer).filter(
+            Customer.email == payload.email
+        ).first()
 
-class OrderCreate(OrderBase):
-    items: List[OrderItemCreate]
+    # If customer still doesn't exist in DB, create them on the fly
+    if not customer:
+        customer = Customer(
+            supabase_auth_user_id=str(payload.customer_id) if payload.customer_id else str(uuid.uuid4()),
+            email=payload.email,
+            phone=payload.phone
+        )
+        db.add(customer)
+        db.commit()
+        db.refresh(customer)
 
-class OrderResponse(OrderBase):
-    id: int
-    created_at: datetime
-    updated_at: datetime
-    items: List[OrderItemResponse]
+    # -------------------------------------------------------------
+    # 2. Save Delivery Address (Optional Audit/Reuse)
+    # -------------------------------------------------------------
+    if payload.latitude and payload.longitude:
+        address_record = Address(
+            customer_id=customer.id,
+            lat=payload.latitude,
+            lng=payload.longitude,
+            formatted_address=payload.address,
+            is_default=True
+        )
+        db.add(address_record)
+
+    # -------------------------------------------------------------
+    # 3. Create the Main Order
+    # -------------------------------------------------------------
+    new_order = Order(
+        customer_id=customer.id,  # Integer FK matching DB Customer table
+        total=payload.total,
+        currency=payload.currency,
+        gateway=payload.gateway,
+        status="pending",
+        # Save full doorstep address details to order notes or direct columns
+        delivery_address=payload.address,
+        phone=payload.phone,
+        email=payload.email
+    )
+    db.add(new_order)
+    db.commit()
+    db.refresh(new_order)
+
+    # -------------------------------------------------------------
+    # 4. Insert Order Items
+    # -------------------------------------------------------------
+    order_items = [
+        OrderItem(
+            order_id=new_order.id,
+            product_id=item.product_id,
+            quantity=item.quantity,
+            unit_price=item.unit_price
+        )
+        for item in payload.items
+    ]
+    db.add_all(order_items)
+    db.commit()
+
+    # -------------------------------------------------------------
+    # 5. Initialize Payment with Gateway (Paystack or Monnify)
+    # -------------------------------------------------------------
+    payment_response = await initialize_payment(
+        gateway=payload.gateway,
+        order_id=new_order.id,
+        amount=payload.total,
+        email=payload.email
+    )
+
+    # Return authorization URL so React can redirect window.location.href
+    return {
+        "order_id": new_order.id,
+        "authorization_url": payment_response.get("authorization_url")
+    }
