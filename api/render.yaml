@@ -6,7 +6,7 @@ services:
     rootDirectory: api   # <-- tells Render to treat api/ as the project root
     envVars:
       - key: PYTHONPATH
-        value: .
+        value: api
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
@@ -44,4 +44,4 @@ services:
       - key: FRONTEND_URL
         sync: false
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: PYTHONPATH=./api uvicorn app.main:app --host 0.0.0.0 --port $PORT
