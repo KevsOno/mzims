@@ -1,14 +1,23 @@
-# api/app/models/__init__.py
+# app/models/__init__.py
 
-# Existing imports
+# SQLAlchemy models (database tables)
+from .order import (
+    Order, OrderItem, Customer, Address,
+    OrderStatus,
+)
+
+# Pydantic schemas (request/response)
+from .order import (
+    OrderCreate, OrderResponse, OrderItemCreate,
+)
+
+# If you have separate product schemas in .product
 from .product import ProductCreate, ProductUpdate, ProductResponse
 
-# Add these imports - adjust file names as needed
-from .order import Order, OrderItem          # if defined in order.py
-from .customer import Customer              # if in customer.py
-from .address import Address                # if in address.py
-
-# If you have many models, you can also export everything from each file:
-# from .order import *
-# from .customer import *
-# from .address import *
+# Optionally, to make everything available from app.models
+__all__ = [
+    "Order", "OrderItem", "Customer", "Address",
+    "OrderStatus",
+    "OrderCreate", "OrderResponse", "OrderItemCreate",
+    "ProductCreate", "ProductUpdate", "ProductResponse",
+]
