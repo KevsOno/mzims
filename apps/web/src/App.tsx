@@ -7,6 +7,7 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import PaymentVerify from './pages/PaymentVerify';
 import FragranceRequest from './pages/FragranceRequest';
+import Login from './pages/Login';          // <-- import your actual Login
 import OrderTracking from './pages/OrderTracking';
 import { CartProvider } from './store/CartContext';
 import { AuthProvider } from './store/AuthContext';
@@ -57,7 +58,7 @@ function App() {
               <Route path="/payment/verify" element={<PaymentVerify />} />
               <Route path="/request-scent" element={<FragranceRequest />} />
               <Route path="/track/:reference" element={<OrderTracking />} />
-              <Route path="/login" element={<Login />} />
+              <Route path="/login" element={<Login />} />   {/* Now uses real Login */}
               {/* 404 Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
