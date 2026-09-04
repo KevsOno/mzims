@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Filter, X } from 'lucide-react';
 import api from '../lib/api';
@@ -9,10 +9,51 @@ const Products: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Filter state
   const [category, setCategory] = useState(searchParams.get('category') || '');
   const [gender, setGender] = useState(searchParams.get('gender') || '');
   const [search, setSearch] = useState(searchParams.get('q') || '');
 
+  // Persistent option states for filters
+  const [allCategories, setAllCategories] = useState<string[]>([]);
+  const [allGenders, setAllGenders] = useState<string[]>([]);
+
+  // 1. Fetch initial master product list once to build complete filter options
+  useEffect(() => {
+    const fetchMasterFilterOptions = async () => {
+      try {
+        const res = await api.get('/products');
+        const rawProducts: any[] = res.data || [];
+
+        const categories = Array.from(
+          new Set(
+            rawProducts
+              .map((p) => p.category)
+              .filter((cat): cat is string => Boolean(cat) && typeof cat === 'string')
+              .map((cat) => cat.trim())
+          )
+        );
+
+        const genders = Array.from(
+          new Set(
+            rawProducts
+              .map((p) => p.gender)
+              .filter((g): g is string => Boolean(g) && typeof g === 'string')
+              .map((g) => g.trim())
+          )
+        );
+
+        setAllCategories(categories);
+        setAllGenders(genders);
+      } catch (e) {
+        console.error('Failed to load filter options:', e);
+      }
+    };
+
+    fetchMasterFilterOptions();
+  }, []);
+
+  // 2. Fetch filtered products list whenever filters or search query changes
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
@@ -20,6 +61,7 @@ const Products: React.FC = () => {
       if (category) params.category = category;
       if (gender) params.gender = gender;
       if (search) params.search = search;
+      
       const res = await api.get('/products', { params });
       setProducts(res.data);
     } catch (e) {
@@ -37,30 +79,6 @@ const Products: React.FC = () => {
     if (search) newParams.q = search;
     setSearchParams(newParams, { replace: true });
   }, [fetchProducts]);
-
-  // Extract Categories dynamically from product rows
-  const dynamicCategories = useMemo(() => {
-    return Array.from(
-      new Set(
-        products
-          .map((p) => p.category)
-          .filter((cat): cat is string => Boolean(cat) && typeof cat === 'string')
-          .map((cat) => cat.trim())
-      )
-    );
-  }, [products]);
-
-  // Extract Genders dynamically from non-null entries
-  const dynamicGenders = useMemo(() => {
-    return Array.from(
-      new Set(
-        products
-          .map((p) => p.gender)
-          .filter((g): g is string => Boolean(g) && typeof g === 'string')
-          .map((g) => g.trim())
-      )
-    );
-  }, [products]);
 
   return (
     <div className="container py-8">
@@ -89,13 +107,13 @@ const Products: React.FC = () => {
                 className="w-full p-2 text-sm border rounded-md"
               >
                 <option value="">All Categories</option>
-                {dynamicCategories.map((cat) => (
+                {allCategories.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
             </div>
 
-            {dynamicGenders.length > 0 && (
+            {allGenders.length > 0 && (
               <div>
                 <label className="block text-xs font-medium text-[#4A4A4A] mb-1">Gender</label>
                 <select 
@@ -104,7 +122,7 @@ const Products: React.FC = () => {
                   className="w-full p-2 text-sm border rounded-md"
                 >
                   <option value="">All Genders</option>
-                  {dynamicGenders.map((g) => (
+                  {allGenders.map((g) => (
                     <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
