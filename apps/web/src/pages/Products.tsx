@@ -1,24 +1,22 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Filter, X } from 'lucide-react';
 import api from '../lib/api';
 
 const Products: React.FC = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Filter state
+  // Filter states initialized from URL params
   const [category, setCategory] = useState(searchParams.get('category') || '');
   const [gender, setGender] = useState(searchParams.get('gender') || '');
   const [search, setSearch] = useState(searchParams.get('q') || '');
 
-  // Persistent option states for filters
+  // Persistent Filter Options
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const [allGenders, setAllGenders] = useState<string[]>([]);
 
-  // 1. Fetch initial master product list once to build complete filter options
+  // 1. Fetch initial master product list to extract valid filter options
   useEffect(() => {
     const fetchMasterFilterOptions = async () => {
       try {
@@ -53,19 +51,23 @@ const Products: React.FC = () => {
     fetchMasterFilterOptions();
   }, []);
 
-  // 2. Fetch filtered products list whenever filters or search query changes
+  // 2. Fetch filtered products with sanitized parameters
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = {};
-      if (category) params.category = category;
-      if (gender) params.gender = gender;
-      if (search) params.search = search;
+      const params: Record<string, string> = {};
       
+      // Trim and ensure string safety before sending
+      if (category.trim()) params.category = category.trim();
+      if (gender.trim()) params.gender = gender.trim();
+      if (search.trim()) params.search = search.trim();
+
+      // Axios handles URL parameter encoding automatically via the params object
       const res = await api.get('/products', { params });
       setProducts(res.data);
     } catch (e) {
-      console.error(e);
+      console.error('Error fetching filtered products:', e);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -73,12 +75,22 @@ const Products: React.FC = () => {
 
   useEffect(() => {
     fetchProducts();
-    const newParams: any = {};
+
+    // Update URL Search Params without breaking special characters (&, spaces)
+    const newParams: Record<string, string> = {};
     if (category) newParams.category = category;
     if (gender) newParams.gender = gender;
     if (search) newParams.q = search;
+
     setSearchParams(newParams, { replace: true });
   }, [fetchProducts]);
+
+  // Handler to clear filters easily
+  const handleResetFilters = () => {
+    setCategory('');
+    setGender('');
+    setSearch('');
+  };
 
   return (
     <div className="container py-8">
@@ -97,33 +109,49 @@ const Products: React.FC = () => {
         {/* Dynamic Sidebar Filters */}
         <aside className="w-full md:w-64 flex-shrink-0">
           <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm space-y-4">
-            <h3 className="font-semibold text-[#1A1A1A]">Filter By</h3>
-            
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-[#1A1A1A]">Filter By</h3>
+              {(category || gender || search) && (
+                <button
+                  onClick={handleResetFilters}
+                  className="text-xs text-[#43408C] hover:underline font-medium"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+
+            {/* Category Dropdown */}
             <div>
               <label className="block text-xs font-medium text-[#4A4A4A] mb-1">Category</label>
-              <select 
-                value={category} 
-                onChange={(e) => setCategory(e.target.value)} 
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
                 className="w-full p-2 text-sm border rounded-md"
               >
                 <option value="">All Categories</option>
                 {allCategories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
                 ))}
               </select>
             </div>
 
+            {/* Gender Dropdown */}
             {allGenders.length > 0 && (
               <div>
                 <label className="block text-xs font-medium text-[#4A4A4A] mb-1">Gender</label>
-                <select 
-                  value={gender} 
-                  onChange={(e) => setGender(e.target.value)} 
+                <select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
                   className="w-full p-2 text-sm border rounded-md"
                 >
                   <option value="">All Genders</option>
                   {allGenders.map((g) => (
-                    <option key={g} value={g}>{g}</option>
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -138,6 +166,16 @@ const Products: React.FC = () => {
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="h-64 bg-gray-100 rounded-lg animate-pulse" />
               ))}
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-lg border border-gray-100">
+              <p className="text-gray-500 text-sm">No products found matching your active filters.</p>
+              <button
+                onClick={handleResetFilters}
+                className="mt-3 text-xs bg-[#43408C] text-white px-4 py-2 rounded-md hover:bg-[#2D2A6E] transition"
+              >
+                Reset Filters
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
