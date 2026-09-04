@@ -3,8 +3,10 @@ services:
     name: muzoscent-api
     runtime: python
     plan: free
-    rootDirectory: api   # <-- tells Render to treat api/ as the project root
-    buildCommand: pip install -r requirements.txt
+    rootDirectory: api
+    buildCommand: |
+      pip install -r requirements.txt
+      pip list
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONPATH
@@ -45,5 +47,3 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
-    buildCommand: pip install -r requirements.txt
-    startCommand: PYTHONPATH=.api uvicorn app.main:app --host 0.0.0.0 --port $PORT
