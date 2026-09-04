@@ -5,6 +5,8 @@ services:
     plan: free
     rootDirectory: api   # <-- tells Render to treat api/ as the project root
     envVars:
+      - key: PYTHONPATH
+        value: .
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
