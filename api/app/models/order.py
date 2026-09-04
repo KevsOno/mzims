@@ -1,106 +1,110 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import Optional
+# app/models/order.py
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from decimal import Decimal
 import uuid
 
-# Import your database session dependency and SQLAlchemy models
-from app.database import get_db
-# from app.models import Order, OrderItem, Customer, Address  # Your SQLAlchemy models
-from app.schemas.order import OrderCreate, OrderResponse    # Your updated Pydantic schemas
-from app.services.payment import initialize_payment        # Your Paystack/Monnify service
-router = APIRouter(prefix="/orders", tags=["Orders"])
+from app.database import Base  # Assume Base is defined in database.py
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
-async def create_order(
-    payload: OrderCreate,
-    db: Session = Depends(get_db)
-):
-    # -------------------------------------------------------------
-    # 1. Resolve or Create the Customer Record
-    # -------------------------------------------------------------
-    customer = None
+# ==============================
+# SQLAlchemy Models (Database)
+# ==============================
 
-    # Try looking up by Supabase Auth User ID if passed as string UUID
-    if payload.customer_id and isinstance(payload.customer_id, str) and payload.customer_id != "0":
-        customer = db.query(Customer).filter(
-            Customer.supabase_auth_user_id == payload.customer_id
-        ).first()
+class Customer(Base):
+    __tablename__ = "customers"
 
-    # Fallback: Look up by Email if customer not found yet
-    if not customer:
-        customer = db.query(Customer).filter(
-            Customer.email == payload.email
-        ).first()
+    id = Column(Integer, primary_key=True, index=True)
+    supabase_auth_user_id = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    phone = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # If customer still doesn't exist in DB, create them on the fly
-    if not customer:
-        customer = Customer(
-            supabase_auth_user_id=str(payload.customer_id) if payload.customer_id else str(uuid.uuid4()),
-            email=payload.email,
-            phone=payload.phone
-        )
-        db.add(customer)
-        db.commit()
-        db.refresh(customer)
+    # Relationships
+    orders = relationship("Order", back_populates="customer")
+    addresses = relationship("Address", back_populates="customer")
 
-    # -------------------------------------------------------------
-    # 2. Save Delivery Address (Optional Audit/Reuse)
-    # -------------------------------------------------------------
-    if payload.latitude and payload.longitude:
-        address_record = Address(
-            customer_id=customer.id,
-            lat=payload.latitude,
-            lng=payload.longitude,
-            formatted_address=payload.address,
-            is_default=True
-        )
-        db.add(address_record)
 
-    # -------------------------------------------------------------
-    # 3. Create the Main Order
-    # -------------------------------------------------------------
-    new_order = Order(
-        customer_id=customer.id,  # Integer FK matching DB Customer table
-        total=payload.total,
-        currency=payload.currency,
-        gateway=payload.gateway,
-        status="pending",
-        # Save full doorstep address details to order notes or direct columns
-        delivery_address=payload.address,
-        phone=payload.phone,
-        email=payload.email
-    )
-    db.add(new_order)
-    db.commit()
-    db.refresh(new_order)
+class Address(Base):
+    __tablename__ = "addresses"
 
-    # -------------------------------------------------------------
-    # 4. Insert Order Items
-    # -------------------------------------------------------------
-    order_items = [
-        OrderItem(
-            order_id=new_order.id,
-            product_id=item.product_id,
-            quantity=item.quantity,
-            unit_price=item.unit_price
-        )
-        for item in payload.items
-    ]
-    db.add_all(order_items)
-    db.commit()
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
+    formatted_address = Column(Text, nullable=False)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # -------------------------------------------------------------
-    # 5. Initialize Payment with Gateway (Paystack or Monnify)
-    # -------------------------------------------------------------
-    payment_response = await initialize_payment(
-        gateway=payload.gateway,
-        order_id=new_order.id,
-        amount=payload.total,
-        email=payload.email
-    )
+    customer = relationship("Customer", back_populates="addresses")
 
-    # Return authorization URL so React can redirect window.location.href
-    return {
-        "order_id": new_order.id,
-        "authorization_url": payment_response.get("authorization_url")
-    }
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    total = Column(Float, nullable=False)
+    currency = Column(String(3), nullable=False)
+    gateway = Column(String(20), nullable=False)  # "paystack" or "monnify"
+    status = Column(String(20), default="pending")
+    delivery_address = Column(Text, nullable=True)
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    customer = relationship("Customer", back_populates="orders")
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    product_id = Column(Integer, nullable=False)  # assuming product id from product service
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    order = relationship("Order", back_populates="items")
+
+
+# ==============================
+# Pydantic Schemas (Request/Response)
+# ==============================
+
+class OrderItemCreate(BaseModel):
+    product_id: int
+    quantity: int
+    unit_price: Decimal
+
+class OrderCreate(BaseModel):
+    customer_id: Optional[str] = None  # Supabase auth user ID as string
+    email: str
+    phone: Optional[str] = None
+    address: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    total: Decimal
+    currency: str
+    gateway: str  # "paystack" or "monnify"
+    items: List[OrderItemCreate]
+
+class OrderResponse(BaseModel):
+    id: int
+    total: float
+    currency: str
+    gateway: str
+    status: str
+    delivery_address: Optional[str] = None
+    phone: Optional[str] = None
+    email: str
+    created_at: str  # or datetime
+
+    class Config:
+        orm_mode = True
