@@ -5,7 +5,8 @@ from ..database import get_db
 from ..models import Customer, Order, OrderItem, Product, CartItem
 from ..schemas.product import ProductResponse
 
-router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
+# FIX: Remove prefix="/recommendations" here since main.py already provides prefix="/api/v1/recommendations"
+router = APIRouter(tags=["Recommendations"])
 
 @router.get("/user", response_model=List[ProductResponse])
 def get_user_recommendations(
