@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 
 const Products: React.FC = () => {
-  const [products, setProducts] = useState<any[]>([]);
+  const [masterProducts, setMasterProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -12,80 +12,92 @@ const Products: React.FC = () => {
   const [gender, setGender] = useState(searchParams.get('gender') || '');
   const [search, setSearch] = useState(searchParams.get('q') || '');
 
-  // Persistent Filter Options
-  const [allCategories, setAllCategories] = useState<string[]>([]);
-  const [allGenders, setAllGenders] = useState<string[]>([]);
-
-  // 1. Fetch initial master product list to extract valid filter options
+  // 1. Fetch initial master product list once
   useEffect(() => {
-    const fetchMasterFilterOptions = async () => {
+    const fetchProducts = async () => {
+      setLoading(true);
       try {
         const res = await api.get('/products');
-        const rawProducts: any[] = res.data || [];
-
-        const categories = Array.from(
-          new Set(
-            rawProducts
-              .map((p) => p.category)
-              .filter((cat): cat is string => Boolean(cat) && typeof cat === 'string')
-              .map((cat) => cat.trim())
-          )
-        );
-
-        const genders = Array.from(
-          new Set(
-            rawProducts
-              .map((p) => p.gender)
-              .filter((g): g is string => Boolean(g) && typeof g === 'string')
-              .map((g) => g.trim())
-          )
-        );
-
-        setAllCategories(categories);
-        setAllGenders(genders);
+        setMasterProducts(res.data || []);
       } catch (e) {
-        console.error('Failed to load filter options:', e);
+        console.error('Failed to load products:', e);
+        setMasterProducts([]);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchMasterFilterOptions();
+    fetchProducts();
   }, []);
 
-  // 2. Fetch filtered products with sanitized parameters
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, string> = {};
-      
-      // Trim and ensure string safety before sending
-      if (category.trim()) params.category = category.trim();
-      if (gender.trim()) params.gender = gender.trim();
-      if (search.trim()) params.search = search.trim();
+  // 2. Extract valid categories using both category and scent_family
+  const allCategories = useMemo(() => {
+    return Array.from(
+      new Set(
+        masterProducts
+          .map((p) => p.category || p.scent_family)
+          .filter((cat): cat is string => Boolean(cat) && typeof cat === 'string')
+          .map((cat) => cat.trim())
+      )
+    );
+  }, [masterProducts]);
 
-      // Axios handles URL parameter encoding automatically via the params object
-      const res = await api.get('/products', { params });
-      setProducts(res.data);
-    } catch (e) {
-      console.error('Error fetching filtered products:', e);
-      setProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [category, gender, search]);
+  // Extract valid genders
+  const allGenders = useMemo(() => {
+    return Array.from(
+      new Set(
+        masterProducts
+          .map((p) => p.gender)
+          .filter((g): g is string => Boolean(g) && typeof g === 'string')
+          .map((g) => g.trim())
+      )
+    );
+  }, [masterProducts]);
 
+  // 3. Client-side filtered products to guarantee consistent note/category matching
+  const filteredProducts = useMemo(() => {
+    return masterProducts.filter((product) => {
+      // Category / Scent Family Filter
+      if (category.trim()) {
+        const targetCategory = category.toLowerCase().trim();
+        const prodCategory = (product.category || '').toLowerCase();
+        const prodScentFamily = (product.scent_family || '').toLowerCase();
+        
+        const matchesCategory = prodCategory.includes(targetCategory) || prodScentFamily.includes(targetCategory);
+        if (!matchesCategory) return false;
+      }
+
+      // Gender Filter
+      if (gender.trim()) {
+        const targetGender = gender.toLowerCase().trim();
+        const prodGender = (product.gender || '').toLowerCase();
+        if (!prodGender.includes(targetGender)) return false;
+      }
+
+      // Search Query Filter
+      if (search.trim()) {
+        const query = search.toLowerCase().trim();
+        const nameMatch = (product.name || '').toLowerCase().includes(query);
+        const descMatch = (product.description || '').toLowerCase().includes(query);
+        const scentMatch = (product.scent_family || '').toLowerCase().includes(query);
+        if (!nameMatch && !descMatch && !scentMatch) return false;
+      }
+
+      return true;
+    });
+  }, [masterProducts, category, gender, search]);
+
+  // Sync URL search parameters
   useEffect(() => {
-    fetchProducts();
-
-    // Update URL Search Params without breaking special characters (&, spaces)
     const newParams: Record<string, string> = {};
     if (category) newParams.category = category;
     if (gender) newParams.gender = gender;
     if (search) newParams.q = search;
 
     setSearchParams(newParams, { replace: true });
-  }, [fetchProducts]);
+  }, [category, gender, search, setSearchParams]);
 
-  // Handler to clear filters easily
+  // Handler to clear filters
   const handleResetFilters = () => {
     setCategory('');
     setGender('');
@@ -167,19 +179,19 @@ const Products: React.FC = () => {
                 <div key={i} className="h-64 bg-gray-100 rounded-lg animate-pulse" />
               ))}
             </div>
-          ) : products.length === 0 ? (
+          ) : filteredProducts.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-lg border border-gray-100">
               <p className="text-gray-500 text-sm">No products found matching your active filters.</p>
               <button
                 onClick={handleResetFilters}
-                className="mt-3 text-xs bg-[#43408C] text-white px-4 py-2 rounded-md hover:bg-[#2D2A6E] transition"
+                className="mt-3 text-xs bg-[#43408C] text-[#ffffff] px-4 py-2 rounded-md hover:bg-[#2D2A6E] transition"
               >
                 Reset Filters
               </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {products.map((product) => (
+              {filteredProducts.map((product) => (
                 <Link
                   to={`/products/${product.slug || product.id}`}
                   key={product.id}
@@ -194,7 +206,7 @@ const Products: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-medium text-sm text-[#1A1A1A] truncate">{product.name}</h3>
-                    <p className="text-xs text-gray-500">{product.category}</p>
+                    <p className="text-xs text-gray-500">{product.scent_family || product.category}</p>
                     <p className="text-[#43408C] font-bold text-sm mt-1">
                       ₦{Number(product.selling_price).toLocaleString()}
                     </p>
