@@ -38,7 +38,8 @@ const RecommendedSection: React.FC<{ addToCart: (product: any, qty: number) => v
         ? `/recommendations/user?customer_id=${user.id}&limit=4`
         : `/products?limit=4`;
       const res = await api.get(endpoint);
-      setRecommendations(res.data);
+      const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setRecommendations(data);
     } catch (err) {
       console.error('Failed to load recommendations', err);
     } finally {
@@ -141,7 +142,7 @@ const RecommendedSection: React.FC<{ addToCart: (product: any, qty: number) => v
                   <div>
                     <span className="text-[10px] uppercase text-white/40 block">Price</span>
                     <span className="text-base font-bold text-[#E8D5A3]">
-                      ₦{Number(product.selling_price).toLocaleString()}
+                      ₦{Number(product.selling_price || product.price || 0).toLocaleString()}
                     </span>
                   </div>
 
@@ -167,39 +168,50 @@ const Home: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const { addToCart } = useCart();
 
-  // Distinct horizontal scroll hooks
+  // Scroll controls hook
   const categoriesScroll = useHorizontalScroll();
 
   useEffect(() => {
     setLoading(true);
     api.get('/products')
-      .then(res => setFeatured(res.data))
+      .then(res => {
+        // Safe extraction handling array or wrapped object `{ data: [...] }`
+        const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        setFeatured(data);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
-  // Dynamically extract categories from returned API products
+  // Dynamically extract categories safely from API products
   const categories = useMemo(() => {
+    if (!Array.isArray(featured)) return ['All'];
+
     const extracted = Array.from(
       new Set(
         featured
-          .map((p) => p.category || p.scent_family)
-          .filter((cat): cat is string => Boolean(cat) && typeof cat === 'string')
+          .flatMap((p) => [p?.category, p?.scent_family])
+          .filter((cat): cat is string => Boolean(cat) && typeof cat === 'string' && cat.trim().length > 0)
           .map((cat) => cat.trim())
       )
     );
     return ['All', ...extracted];
   }, [featured]);
 
-  // Filter products matching active category
+  // Filter products matching category or scent family safely
   const filteredProducts = useMemo(() => {
+    if (!Array.isArray(featured)) return [];
     if (activeCategory === 'All') return featured;
 
-    const lowerCategory = activeCategory.toLowerCase();
+    const lowerCategory = activeCategory.trim().toLowerCase();
     return featured.filter((p) => {
-      const productCategory = p.category?.toLowerCase() || '';
-      const scentFamily = p.scent_family?.toLowerCase() || '';
-      return productCategory.includes(lowerCategory) || scentFamily.includes(lowerCategory);
+      const productCategory = (p?.category || '').toString().toLowerCase().trim();
+      const scentFamily = (p?.scent_family || '').toString().toLowerCase().trim();
+      
+      return productCategory === lowerCategory || 
+             scentFamily === lowerCategory || 
+             productCategory.includes(lowerCategory) || 
+             scentFamily.includes(lowerCategory);
     });
   }, [featured, activeCategory]);
 
@@ -212,7 +224,7 @@ const Home: React.FC = () => {
           <div className="absolute bottom-10 right-10 w-96 h-96 bg-[#6A67A8]/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
         </div>
 
-        <div className="container relative z-10 px-4">
+        <div className="container relative z-10 px-4 mx-auto">
           <div className="grid lg:grid-cols-12 gap-8 items-center">
             
             <div className="lg:col-span-7 text-center lg:text-left">
@@ -279,7 +291,7 @@ const Home: React.FC = () => {
 
       {/* Trust Badges Bar */}
       <section className="bg-[#FAF9F6] border-b border-gray-100 py-4">
-        <div className="container px-4 flex flex-wrap justify-around gap-4 text-xs md:text-sm text-[#4A4A4A]">
+        <div className="container mx-auto px-4 flex flex-wrap justify-around gap-4 text-xs md:text-sm text-[#4A4A4A]">
           <div className="flex items-center gap-2">
             <Truck size={18} className="text-[#C9A96A]" />
             <span>Free Express Delivery over ₦50,000</span>
@@ -296,9 +308,9 @@ const Home: React.FC = () => {
       </section>
 
       {/* Featured Products Section */}
-      <section className="container py-14 px-4">
+      <section className="container mx-auto py-14 px-4">
         
-        {/* Category Pill Filters Bar with Horizontal Scroll Controls */}
+        {/* Dynamic Category Pill Filters with Scroll Controls */}
         <div className="sticky top-16 md:top-20 z-20 bg-white/95 backdrop-blur-md py-4 mb-8 border-b border-gray-100 shadow-sm transition-all">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -329,7 +341,7 @@ const Home: React.FC = () => {
               </div>
 
               {/* Scroll Arrow Buttons for Categories */}
-              {categories.length > 4 && (
+              {categories.length > 3 && (
                 <div className="flex items-center gap-1 flex-shrink-0 border-l border-gray-200 pl-2">
                   <button
                     onClick={() => categoriesScroll.scroll('left')}
@@ -415,7 +427,7 @@ const Home: React.FC = () => {
 
                   <div className="mt-4 flex items-center justify-between">
                     <span className="text-lg font-bold text-[#43408C]">
-                      ₦{Number(product.selling_price).toLocaleString()}
+                      ₦{Number(product.selling_price || product.price || 0).toLocaleString()}
                     </span>
 
                     <button
@@ -445,7 +457,7 @@ const Home: React.FC = () => {
 
       {/* Scent Recommendation CTA Banner */}
       <section className="py-16 bg-gradient-to-br from-[#1A1A2E] to-[#2D2A6E] text-white">
-        <div className="container px-4 text-center">
+        <div className="container mx-auto px-4 text-center">
           <div className="max-w-xl mx-auto">
             <Sparkles size={32} className="mx-auto text-[#C9A96A] mb-4" />
             <h2 className="text-3xl md:text-4xl font-serif font-bold">Can't find your signature scent?</h2>
