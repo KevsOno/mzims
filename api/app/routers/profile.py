@@ -3,7 +3,7 @@ from supabase import Client
 from pydantic import BaseModel
 from typing import Optional
 from ..core.db import get_supabase_client
-from ..core.auth import get_current_user
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
