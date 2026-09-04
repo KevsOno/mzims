@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List, Union
 from datetime import datetime
 from enum import Enum
 
@@ -24,7 +24,16 @@ class OrderItemResponse(OrderItemBase):
     created_at: datetime
 
 class OrderBase(BaseModel):
-    customer_id: int
+    # Accepts either an integer DB ID or a Supabase UUID string
+    customer_id: Optional[Union[int, str]] = None
+    email: EmailStr
+    phone: str
+    address: str
+    street_address: Optional[str] = None
+    building_details: Optional[str] = None
+    landmark: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     total: float
     currency: str = "NGN"
     gateway: str  # "paystack" or "monnify"
@@ -32,7 +41,7 @@ class OrderBase(BaseModel):
     status: OrderStatus = OrderStatus.PENDING
 
 class OrderCreate(OrderBase):
-    items: List[OrderItemCreate]  # nested for creation
+    items: List[OrderItemCreate]
 
 class OrderResponse(OrderBase):
     id: int
