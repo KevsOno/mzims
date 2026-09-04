@@ -1,7 +1,7 @@
 import axios from 'axios';
+import { supabase } from './supabase'; // Direct import at the top
 
 const baseURL = import.meta.env.VITE_API_URL || 'https://muzoscent.onrender.com/api/v1/';
-
 
 const api = axios.create({
   baseURL,
@@ -10,15 +10,23 @@ const api = axios.create({
   },
 });
 
-// Add auth token interceptor
-api.interceptors.request.use(async (config) => {
-  const { supabase } = await import('./supabase');
-  const session = await supabase.auth.getSession();
-  const token = session.data.session?.access_token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Add auth token interceptor safely
+api.interceptors.request.use(
+  async (config) => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error('Error fetching auth token in interceptor:', error);
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
 export default api;
