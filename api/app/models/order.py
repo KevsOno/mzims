@@ -5,7 +5,7 @@ import uuid
 
 # Import your database session dependency and SQLAlchemy models
 from app.database import get_db
-from app.models import Order, OrderItem, Customer, Address  # Your SQLAlchemy models
+# from app.models import Order, OrderItem, Customer, Address  # Your SQLAlchemy models
 from app.schemas.order import OrderCreate, OrderResponse    # Your updated Pydantic schemas
 from app.services.payment import initialize_payment        # Your Paystack/Monnify service
 router = APIRouter(prefix="/orders", tags=["Orders"])
