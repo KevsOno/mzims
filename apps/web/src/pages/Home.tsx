@@ -1,22 +1,40 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, Star, ShoppingBag, ShieldCheck, Truck, Gift, RefreshCw, Eye } from 'lucide-react';
+import { ArrowRight, Sparkles, Star, ShoppingBag, ShieldCheck, Truck, Gift, RefreshCw, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../lib/api';
 import { useCart } from '../store/CartContext';
 import { useAuth } from '../store/AuthContext';
+
+// Helper hook for smooth scroll controls
+const useHorizontalScroll = () => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const scrollAmount = scrollRef.current.clientWidth * 0.75;
+      scrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  };
+
+  return { scrollRef, scroll };
+};
 
 // Dynamic Recommendation Component
 const RecommendedSection: React.FC<{ addToCart: (product: any, qty: number) => void }> = ({ addToCart }) => {
   const { user } = useAuth();
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const { scrollRef, scroll } = useHorizontalScroll();
 
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
       const endpoint = user?.id 
-        ? `/recommendations/user?customer_id=${user.id}&limit=4`
-        : `/products?limit=4`;
+        ? `/recommendations/user?customer_id=${user.id}&limit=6`
+        : `/products?limit=6`;
       const res = await api.get(endpoint);
       setRecommendations(res.data);
     } catch (err) {
@@ -31,13 +49,13 @@ const RecommendedSection: React.FC<{ addToCart: (product: any, qty: number) => v
   }, [user]);
 
   return (
-    <section className="relative my-16 py-12 px-6 rounded-3xl bg-gradient-to-br from-[#1A1A2E] via-[#2D2A6E] to-[#14142B] text-white shadow-2xl overflow-hidden border border-[#C9A96A]/20">
+    <section className="relative my-12 md:my-16 py-8 md:py-12 px-4 md:px-6 rounded-3xl bg-gradient-to-br from-[#1A1A2E] via-[#2D2A6E] to-[#14142B] text-white shadow-2xl overflow-hidden border border-[#C9A96A]/20">
       {/* Background Glows */}
       <div className="absolute top-0 right-0 w-80 h-80 bg-[#C9A96A]/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#43408C]/20 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#C9A96A]/20 border border-[#C9A96A]/40 mb-3">
               <Sparkles size={12} className="text-[#C9A96A]" />
@@ -55,34 +73,58 @@ const RecommendedSection: React.FC<{ addToCart: (product: any, qty: number) => v
             </p>
           </div>
 
-          <button
-            onClick={fetchRecommendations}
-            disabled={loading}
-            className="inline-flex items-center gap-2 text-xs text-[#E8D5A3] hover:text-white transition bg-white/10 hover:bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 self-start md:self-auto"
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            Refresh Picks
-          </button>
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            <button
+              onClick={fetchRecommendations}
+              disabled={loading}
+              className="inline-flex items-center gap-2 text-xs text-[#E8D5A3] hover:text-white transition bg-white/10 hover:bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/10"
+            >
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+
+            {/* Slider Controls */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => scroll('left')}
+                className="p-2 rounded-full bg-white/10 hover:bg-[#C9A96A] hover:text-[#1A1A2E] text-white backdrop-blur-md transition border border-white/10"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={() => scroll('right')}
+                className="p-2 rounded-full bg-white/10 hover:bg-[#C9A96A] hover:text-[#1A1A2E] text-white backdrop-blur-md transition border border-white/10"
+                aria-label="Scroll right"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Dynamic Product Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Horizontal Scroll Track */}
+        <div 
+          ref={scrollRef}
+          className="flex gap-4 overflow-x-auto scrollbar-none snap-x snap-mandatory py-2 scroll-smooth"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-80 bg-white/5 rounded-2xl animate-pulse border border-white/10" />
+              <div key={i} className="min-w-[260px] sm:min-w-[280px] h-80 bg-white/5 rounded-2xl animate-pulse border border-white/10 flex-shrink-0" />
             ))
           ) : recommendations.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-white/60 text-sm">
+            <div className="w-full text-center py-12 text-white/60 text-sm">
               No recommendations found right now. Explore the full catalog to teach our AI engine!
             </div>
           ) : (
             recommendations.map((product) => (
               <div
                 key={product.id}
-                className="group relative bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-[#C9A96A]/50 p-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col justify-between"
+                className="snap-start min-w-[250px] sm:min-w-[270px] max-w-[270px] flex-shrink-0 group relative bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-[#C9A96A]/50 p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl flex flex-col justify-between"
               >
                 <div>
-                  <div className="relative h-56 rounded-xl overflow-hidden bg-black/20 mb-4">
+                  <div className="relative h-48 rounded-xl overflow-hidden bg-black/20 mb-3">
                     {product.images?.[0] ? (
                       <img
                         src={product.images[0]}
@@ -117,7 +159,7 @@ const RecommendedSection: React.FC<{ addToCart: (product: any, qty: number) => v
                   </p>
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-white/10 flex items-center justify-between">
+                <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] uppercase text-white/40 block">Price</span>
                     <span className="text-base font-bold text-[#E8D5A3]">
@@ -127,7 +169,7 @@ const RecommendedSection: React.FC<{ addToCart: (product: any, qty: number) => v
 
                   <button
                     onClick={() => addToCart(product, 1)}
-                    className="inline-flex items-center gap-1.5 bg-[#C9A96A] hover:bg-[#E8D5A3] text-[#1A1A2E] font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-md"
+                    className="inline-flex items-center gap-1.5 bg-[#C9A96A] hover:bg-[#E8D5A3] text-[#1A1A2E] font-bold text-xs px-3 py-2 rounded-xl transition shadow-md"
                   >
                     <ShoppingBag size={14} /> Add
                   </button>
@@ -146,6 +188,7 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const { addToCart } = useCart();
+  const { scrollRef, scroll } = useHorizontalScroll();
 
   useEffect(() => {
     setLoading(true);
@@ -272,42 +315,82 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Featured Products Section */}
-      <section className="container py-14 px-4">
+      {/* Featured Products Section - Horizontal Line Slider */}
+      <section className="container py-10 md:py-14 px-4">
         
-        {/* Dynamic Category Pill Filters */}
-        <div className="sticky top-16 md:top-20 z-20 bg-white/95 backdrop-blur-md py-4 mb-8 border-b border-gray-100 shadow-sm transition-all">
+        {/* Header & Category Filters */}
+        <div className="sticky top-16 md:top-20 z-20 bg-white/95 backdrop-blur-md py-4 mb-6 border-b border-gray-100 shadow-sm transition-all">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-2xl md:text-3xl font-serif text-[#43408C]">Featured Fragrances</h2>
-              <div className="gold-divider mt-1" />
+            <div className="flex items-center justify-between w-full md:w-auto">
+              <div>
+                <h2 className="text-2xl md:text-3xl font-serif text-[#43408C]">Featured Fragrances</h2>
+                <div className="gold-divider mt-1" />
+              </div>
+
+              {/* Navigation Arrows for Mobile */}
+              <div className="flex items-center gap-1.5 md:hidden">
+                <button
+                  onClick={() => scroll('left')}
+                  className="p-2 rounded-full border border-gray-200 bg-gray-50 text-[#43408C] active:bg-[#43408C] active:text-white transition"
+                  aria-label="Previous items"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => scroll('right')}
+                  className="p-2 rounded-full border border-gray-200 bg-gray-50 text-[#43408C] active:bg-[#43408C] active:text-white transition"
+                  aria-label="Next items"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
 
-            {/* Dynamic Scent/Category Filter */}
-            <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
+            {/* Dynamic Scent/Category Filter Pills + Desktop Arrows */}
+            <div className="flex items-center gap-4 overflow-hidden">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`text-xs px-4 py-2 rounded-full transition whitespace-nowrap flex-shrink-0 ${
+                      activeCategory === cat
+                        ? 'bg-[#43408C] text-white font-medium shadow-sm'
+                        : 'bg-gray-100 text-[#4A4A4A] hover:bg-gray-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Navigation Arrows for Desktop */}
+              <div className="hidden md:flex items-center gap-1.5 flex-shrink-0 border-l border-gray-200 pl-3">
                 <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`text-xs px-4 py-2 rounded-full transition ${
-                    activeCategory === cat
-                      ? 'bg-[#43408C] text-white font-medium shadow-sm'
-                      : 'bg-gray-100 text-[#4A4A4A] hover:bg-gray-200'
-                  }`}
+                  onClick={() => scroll('left')}
+                  className="p-2 rounded-full border border-gray-200 bg-gray-50 hover:bg-[#43408C] hover:text-white text-[#43408C] transition"
+                  aria-label="Previous items"
                 >
-                  {cat}
+                  <ChevronLeft size={16} />
                 </button>
-              ))}
+                <button
+                  onClick={() => scroll('right')}
+                  className="p-2 rounded-full border border-gray-200 bg-gray-50 hover:bg-[#43408C] hover:text-white text-[#43408C] transition"
+                  aria-label="Next items"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {loading ? (
-            Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm animate-pulse">
-                <div className="w-full h-60 bg-gray-200" />
+        {/* Product Slider Line */}
+        {loading ? (
+          <div className="flex gap-4 overflow-hidden">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="min-w-[240px] sm:min-w-[270px] rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm animate-pulse flex-shrink-0">
+                <div className="w-full h-52 bg-gray-200" />
                 <div className="p-4 space-y-3">
                   <div className="h-4 bg-gray-200 rounded w-3/4" />
                   <div className="h-3 bg-gray-200 rounded w-1/2" />
@@ -317,25 +400,31 @@ const Home: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ))
-          ) : filteredProducts.length === 0 ? (
-            <div className="col-span-full text-center py-12 bg-white rounded-xl border border-gray-100">
-              <p className="text-gray-500 text-sm">No fragrances found under this category.</p>
-              <button
-                onClick={() => setActiveCategory('All')}
-                className="mt-3 text-xs bg-[#43408C] text-white px-4 py-2 rounded-md hover:bg-[#2D2A6E] transition"
-              >
-                View All Fragrances
-              </button>
-            </div>
-          ) : (
-            filteredProducts.slice(0, 8).map((product: any) => (
+            ))}
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-xl border border-gray-100">
+            <p className="text-gray-500 text-sm">No fragrances found under this category.</p>
+            <button
+              onClick={() => setActiveCategory('All')}
+              className="mt-3 text-xs bg-[#43408C] text-white px-4 py-2 rounded-md hover:bg-[#2D2A6E] transition"
+            >
+              View All Fragrances
+            </button>
+          </div>
+        ) : (
+          <div
+            ref={scrollRef}
+            className="flex gap-4 overflow-x-auto snap-x snap-mandatory py-2 scroll-smooth scrollbar-none"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {filteredProducts.map((product: any) => (
               <div
                 key={product.id}
-                className="group relative rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm hover:shadow-md transition duration-300 flex flex-col justify-between"
+                className="snap-start min-w-[240px] sm:min-w-[260px] max-w-[260px] flex-shrink-0 group relative rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm hover:shadow-md transition duration-300 flex flex-col justify-between"
               >
                 <Link to={`/products/${product.slug || product.id}`} className="block">
-                  <div className="image-wrapper relative h-64 bg-gray-50 overflow-hidden">
+                  <div className="image-wrapper relative h-52 bg-gray-50 overflow-hidden">
                     {product.images && product.images.length > 0 ? (
                       <img 
                         src={product.images[0]} 
@@ -365,7 +454,7 @@ const Home: React.FC = () => {
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
-                    <span className="text-lg font-bold text-[#43408C]">
+                    <span className="text-base font-bold text-[#43408C]">
                       ₦{Number(product.selling_price).toLocaleString()}
                     </span>
 
@@ -379,11 +468,11 @@ const Home: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
 
-        <div className="mt-10 text-center">
+        <div className="mt-8 text-center">
           <Link to="/products" className="inline-flex items-center gap-2 text-[#43408C] font-semibold border-b-2 border-[#C9A96A] pb-1 hover:text-[#C9A96A] transition text-sm">
             Explore All Fragrances <ArrowRight size={16} />
           </Link>
