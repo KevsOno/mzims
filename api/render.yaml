@@ -4,6 +4,8 @@ services:
     runtime: python
     plan: free
     rootDirectory: api   # <-- tells Render to treat api/ as the project root
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONPATH
         value: .
