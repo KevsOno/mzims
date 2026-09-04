@@ -188,7 +188,10 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const { addToCart } = useCart();
-  const { scrollRef, scroll } = useHorizontalScroll();
+  
+  // Independent scroll controls for Categories and Products
+  const { scrollRef: categoryScrollRef, scroll: scrollCategory } = useHorizontalScroll();
+  const { scrollRef: productScrollRef, scroll: scrollProduct } = useHorizontalScroll();
 
   useEffect(() => {
     setLoading(true);
@@ -198,7 +201,6 @@ const Home: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  // Dynamically extract categories from returned products
   const categories = useMemo(() => {
     const extracted = Array.from(
       new Set(
@@ -211,7 +213,6 @@ const Home: React.FC = () => {
     return ['All', ...extracted];
   }, [featured]);
 
-  // Filter products matching category or scent family
   const filteredProducts = useMemo(() => {
     if (activeCategory === 'All') return featured;
 
@@ -315,7 +316,7 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Featured Products Section - Horizontal Line Slider */}
+      {/* Featured Products Section */}
       <section className="container py-10 md:py-14 px-4">
         
         {/* Header & Category Filters */}
@@ -327,28 +328,32 @@ const Home: React.FC = () => {
                 <div className="gold-divider mt-1" />
               </div>
 
-              {/* Navigation Arrows for Mobile */}
+              {/* Navigation Arrows for Categories (Mobile) */}
               <div className="flex items-center gap-1.5 md:hidden">
                 <button
-                  onClick={() => scroll('left')}
+                  onClick={() => scrollCategory('left')}
                   className="p-2 rounded-full border border-gray-200 bg-gray-50 text-[#43408C] active:bg-[#43408C] active:text-white transition"
-                  aria-label="Previous items"
+                  aria-label="Previous categories"
                 >
                   <ChevronLeft size={16} />
                 </button>
                 <button
-                  onClick={() => scroll('right')}
+                  onClick={() => scrollCategory('right')}
                   className="p-2 rounded-full border border-gray-200 bg-gray-50 text-[#43408C] active:bg-[#43408C] active:text-white transition"
-                  aria-label="Next items"
+                  aria-label="Next categories"
                 >
                   <ChevronRight size={16} />
                 </button>
               </div>
             </div>
 
-            {/* Dynamic Scent/Category Filter Pills + Desktop Arrows */}
+            {/* Dynamic Scent/Category Filter Pills + Desktop Category Arrows */}
             <div className="flex items-center gap-4 overflow-hidden">
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+              <div 
+                ref={categoryScrollRef}
+                className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none scroll-smooth" 
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
                 {categories.map((cat) => (
                   <button
                     key={cat}
@@ -364,19 +369,19 @@ const Home: React.FC = () => {
                 ))}
               </div>
 
-              {/* Navigation Arrows for Desktop */}
+              {/* Navigation Arrows for Categories (Desktop) */}
               <div className="hidden md:flex items-center gap-1.5 flex-shrink-0 border-l border-gray-200 pl-3">
                 <button
-                  onClick={() => scroll('left')}
+                  onClick={() => scrollCategory('left')}
                   className="p-2 rounded-full border border-gray-200 bg-gray-50 hover:bg-[#43408C] hover:text-white text-[#43408C] transition"
-                  aria-label="Previous items"
+                  aria-label="Previous categories"
                 >
                   <ChevronLeft size={16} />
                 </button>
                 <button
-                  onClick={() => scroll('right')}
+                  onClick={() => scrollCategory('right')}
                   className="p-2 rounded-full border border-gray-200 bg-gray-50 hover:bg-[#43408C] hover:text-white text-[#43408C] transition"
-                  aria-label="Next items"
+                  aria-label="Next categories"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -385,7 +390,7 @@ const Home: React.FC = () => {
           </div>
         </div>
 
-        {/* Product Slider Line */}
+        {/* Product Slider Container */}
         {loading ? (
           <div className="flex gap-4 overflow-hidden">
             {Array.from({ length: 4 }).map((_, index) => (
@@ -414,7 +419,7 @@ const Home: React.FC = () => {
           </div>
         ) : (
           <div
-            ref={scrollRef}
+            ref={productScrollRef}
             className="flex gap-4 overflow-x-auto snap-x snap-mandatory py-2 scroll-smooth scrollbar-none"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
