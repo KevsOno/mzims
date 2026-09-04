@@ -9,6 +9,7 @@ import PaymentVerify from './pages/PaymentVerify';
 import FragranceRequest from './pages/FragranceRequest';
 import Login from './pages/Login';               // <-- Import the actual Login
 import Register from './pages/Register';          // <-- Import Register
+import Welcome from './pages/Welcome';  // add import
 import OrderTracking from './pages/OrderTracking';
 import { CartProvider } from './store/CartContext';
 import { AuthProvider } from './store/AuthContext';
@@ -46,6 +47,7 @@ function App() {
               <Route path="/track/:reference" element={<OrderTracking />} />
               <Route path="/login" element={<Login />} />   {/* Now uses the real component */}
               <Route path="/register" element={<Register />} />    {/* New route */}
+              <Route path="/welcome" element={<Welcome />} />
               {/* 404 Catch-all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
