@@ -1,8 +1,145 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, Star, ShoppingBag, ShieldCheck, Truck, Gift } from 'lucide-react';
+import { ArrowRight, Sparkles, Star, ShoppingBag, ShieldCheck, Truck, Gift, RefreshCw, Eye } from 'lucide-react';
 import api from '../lib/api';
 import { useCart } from '../store/CartContext';
+import { useAuth } from '../store/AuthContext';
+
+// Dynamic Recommendation Component
+const RecommendedSection: React.FC<{ addToCart: (product: any, qty: number) => void }> = ({ addToCart }) => {
+  const { user } = useAuth();
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const fetchRecommendations = async () => {
+    setLoading(true);
+    try {
+      const endpoint = user?.id 
+        ? `/recommendations/user?customer_id=${user.id}&limit=4`
+        : `/products?limit=4`;
+      const res = await api.get(endpoint);
+      setRecommendations(res.data);
+    } catch (err) {
+      console.error('Failed to load recommendations', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecommendations();
+  }, [user]);
+
+  return (
+    <section className="relative my-16 py-12 px-6 rounded-3xl bg-gradient-to-br from-[#1A1A2E] via-[#2D2A6E] to-[#14142B] text-white shadow-2xl overflow-hidden border border-[#C9A96A]/20">
+      {/* Background Glows */}
+      <div className="absolute top-0 right-0 w-80 h-80 bg-[#C9A96A]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-[#43408C]/20 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="relative z-10">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#C9A96A]/20 border border-[#C9A96A]/40 mb-3">
+              <Sparkles size={12} className="text-[#C9A96A]" />
+              <span className="text-[11px] font-semibold tracking-wider text-[#E8D5A3] uppercase">
+                {user ? 'Curated Scent AI' : 'Community Highlights'}
+              </span>
+            </div>
+            <h2 className="text-2xl md:text-4xl font-serif font-bold text-white">
+              {user ? 'Selected For Your Fragrance Profile' : 'Must-Have Signature Scents'}
+            </h2>
+            <p className="text-xs md:text-sm text-white/70 mt-1 max-w-lg">
+              {user 
+                ? 'Driven by your scent family preferences, price affinity, and past collections.' 
+                : 'Popular scents carefully chosen based on trending community preference.'}
+            </p>
+          </div>
+
+          <button
+            onClick={fetchRecommendations}
+            disabled={loading}
+            className="inline-flex items-center gap-2 text-xs text-[#E8D5A3] hover:text-white transition bg-white/10 hover:bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 self-start md:self-auto"
+          >
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            Refresh Picks
+          </button>
+        </div>
+
+        {/* Dynamic Product Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-80 bg-white/5 rounded-2xl animate-pulse border border-white/10" />
+            ))
+          ) : recommendations.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-white/60 text-sm">
+              No recommendations found right now. Explore the full catalog to teach our AI engine!
+            </div>
+          ) : (
+            recommendations.map((product) => (
+              <div
+                key={product.id}
+                className="group relative bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 hover:border-[#C9A96A]/50 p-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl flex flex-col justify-between"
+              >
+                <div>
+                  <div className="relative h-56 rounded-xl overflow-hidden bg-black/20 mb-4">
+                    {product.images?.[0] ? (
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-5xl">✨</div>
+                    )}
+                    {product.scent_family && (
+                      <span className="absolute top-2.5 left-2.5 bg-[#1A1A2E]/80 backdrop-blur-md border border-[#C9A96A]/40 text-[#E8D5A3] text-[10px] font-semibold uppercase px-2.5 py-1 rounded-full">
+                        {product.scent_family}
+                      </span>
+                    )}
+                    <Link
+                      to={`/products/${product.slug || product.id}`}
+                      className="absolute bottom-2.5 right-2.5 p-2 bg-white/20 backdrop-blur-md hover:bg-[#C9A96A] text-white hover:text-[#1A1A2E] rounded-full transition opacity-0 group-hover:opacity-100"
+                      title="Quick View"
+                    >
+                      <Eye size={14} />
+                    </Link>
+                  </div>
+
+                  <Link to={`/products/${product.slug || product.id}`}>
+                    <h3 className="font-serif text-base font-semibold text-white group-hover:text-[#E8D5A3] transition line-clamp-1">
+                      {product.name}
+                    </h3>
+                  </Link>
+                  <p className="text-xs text-white/60 mt-1 line-clamp-1">
+                    {product.description || 'Premium long-lasting formulation'}
+                  </p>
+                </div>
+
+                <div className="mt-5 pt-3 border-t border-white/10 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase text-white/40 block">Price</span>
+                    <span className="text-base font-bold text-[#E8D5A3]">
+                      ₦{Number(product.selling_price).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => addToCart(product, 1)}
+                    className="inline-flex items-center gap-1.5 bg-[#C9A96A] hover:bg-[#E8D5A3] text-[#1A1A2E] font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-md"
+                  >
+                    <ShoppingBag size={14} /> Add
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
 
 const Home: React.FC = () => {
   const [featured, setFeatured] = useState<any[]>([]);
@@ -251,6 +388,10 @@ const Home: React.FC = () => {
             Explore All Fragrances <ArrowRight size={16} />
           </Link>
         </div>
+
+        {/* Dynamic AI Recommendation Section */}
+        <RecommendedSection addToCart={addToCart} />
+
       </section>
 
       {/* Scent Recommendation CTA Banner */}
