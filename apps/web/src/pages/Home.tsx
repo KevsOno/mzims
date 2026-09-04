@@ -38,6 +38,7 @@ const RecommendedSection: React.FC<{ addToCart: (product: any, qty: number) => v
         ? `/recommendations/user?customer_id=${user.id}&limit=4`
         : `/products?limit=4`;
       const res = await api.get(endpoint);
+      console.log('Recommendation Response received:', res.data);
       const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
       setRecommendations(data);
     } catch (err) {
@@ -171,15 +172,18 @@ const Home: React.FC = () => {
   // Scroll controls hook
   const categoriesScroll = useHorizontalScroll();
 
+  // Fetch products with debugging logs
   useEffect(() => {
     setLoading(true);
     api.get('/products')
       .then(res => {
-        // Safe extraction handling array or wrapped object `{ data: [...] }`
+        console.log('API Response received:', res.data);
         const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
         setFeatured(data);
       })
-      .catch(console.error)
+      .catch(err => {
+        console.error('API Call Failed:', err);
+      })
       .finally(() => setLoading(false));
   }, []);
 
