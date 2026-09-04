@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../store/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -45,10 +45,13 @@ const Login: React.FC = () => {
         <button type="submit" className="btn-primary w-full">
           Sign In
         </button>
-        <p className="mt-4 text-sm text-[#4A4A4A]">
-  Don't have an account? <Link to="/register" className="text-[#43408C] font-semibold">Sign up</Link>
-</p>
       </form>
+      <p className="mt-4 text-sm text-[#4A4A4A]">
+        Don't have an account?{' '}
+        <Link to="/register" className="text-[#43408C] font-semibold hover:underline">
+          Sign up
+        </Link>
+      </p>
     </div>
   );
 };
