@@ -4,11 +4,10 @@ from typing import Optional
 import uuid
 
 # Import your database session dependency and SQLAlchemy models
-from ..database import get_db
-from ..models import Order, OrderItem, Customer, Address  # Your SQLAlchemy models
-from ..schemas.order import OrderCreate, OrderResponse    # Your updated Pydantic schemas
-from ..services.payment import initialize_payment       # Your Paystack/Monnify service
-
+from api.app.database import get_db
+from api.app.models import Order, OrderItem, Customer, Address  # Your SQLAlchemy models
+from api.app.schemas.order import OrderCreate, OrderResponse    # Your updated Pydantic schemas
+from api.app.services.payment import initialize_payment        # Your Paystack/Monnify service
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
