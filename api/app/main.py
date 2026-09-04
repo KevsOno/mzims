@@ -4,11 +4,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from .core.config import settings
-from .routers import chat
-from .routers import profile
 from .core.security import SecurityHeadersMiddleware
-# 1. Add 'recommendations' to your routers import
-from .routers import products, orders, webhooks, geo, requests, auth, recommendations 
+
+# Import all routers cleanly
+from .routers import (
+    auth,
+    chat,
+    checkout,
+    geo,
+    orders,
+    products,
+    profile,
+    recommendations,
+    requests,
+    webhooks,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,14 +60,13 @@ app.add_middleware(
 # Routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(products.router, prefix="/api/v1/products", tags=["products"])
+app.include_router(checkout.router, prefix="/api/v1/checkout", tags=["checkout"])
 app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
-app.include_router(profile.router)
+app.include_router(profile.router, prefix="/api/v1/profile", tags=["profile"])
 app.include_router(geo.router, prefix="/api/v1/geo", tags=["geo"])
 app.include_router(requests.router, prefix="/api/v1/requests", tags=["requests"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
-
-# 2. Register recommendations router with API v1 prefix
 app.include_router(recommendations.router, prefix="/api/v1/recommendations", tags=["recommendations"])
 
 @app.get("/")
