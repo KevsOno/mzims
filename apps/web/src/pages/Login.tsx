@@ -7,17 +7,19 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     try {
       await signIn(email, password);
       navigate('/');
-    } catch (error) {
-      alert('Login failed. Check your credentials.');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Login failed. Check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -37,8 +39,15 @@ const Login: React.FC = () => {
   );
 
   return (
-    <div className="container max-w-md mx-auto py-12">
+    <div className="container max-w-md mx-auto py-12 px-4">
       <h1 className="text-2xl font-serif text-[#43408C] mb-4">Sign In</h1>
+      
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-200">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="label">Email</label>
@@ -50,8 +59,14 @@ const Login: React.FC = () => {
             className="input-field"
           />
         </div>
+
         <div>
-          <label className="label">Password</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="label">Password</label>
+            <Link to="/forgot-password" className="text-xs text-[#43408C] hover:underline font-medium">
+              Forgot password?
+            </Link>
+          </div>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
@@ -70,10 +85,12 @@ const Login: React.FC = () => {
             </button>
           </div>
         </div>
+
         <button type="submit" className="btn-primary w-full" disabled={loading}>
           {loading ? 'Signing In...' : 'Sign In'}
         </button>
       </form>
+
       <p className="mt-4 text-sm text-[#4A4A4A]">
         Don't have an account?{' '}
         <Link to="/register" className="text-[#43408C] font-semibold hover:underline">
