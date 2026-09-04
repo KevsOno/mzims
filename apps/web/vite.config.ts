@@ -11,7 +11,8 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: false,
       workbox: {
-        globPatterns: ['**/*.{js,css,html}'],
+        // Updated pattern to include images, icons, and font formats generated in dist
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,jpg,jpeg,woff2}'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.paystack\.co\/.*/i,
