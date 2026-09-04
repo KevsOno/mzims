@@ -5,6 +5,12 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_KEY: str
 
+
+    # Database
+    DATABASE_URL: str   # <-- add this line
+
+    
+
     # Paystack
     PAYSTACK_SECRET_KEY: str
     PAYSTACK_PUBLIC_KEY: str
