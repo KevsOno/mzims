@@ -4,10 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from .core.config import settings
-from .routers import chat   # add this import
+from .routers import chat
 from .routers import profile
 from .core.security import SecurityHeadersMiddleware
-from .routers import products, orders, webhooks, geo, requests, auth
+# 1. Add 'recommendations' to your routers import
+from .routers import products, orders, webhooks, geo, requests, auth, recommendations 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,25 +29,19 @@ app = FastAPI(
     openapi_url="/api/openapi.json"
 )
 
-# 1. Custom Security Headers (Runs LAST in execution chain)
+# Middleware
 app.add_middleware(SecurityHeadersMiddleware)
-
-# 2. Trusted Host
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
-
-# 3. CORS Middleware (Added LAST in code so it runs FIRST on incoming requests)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        settings.FRONTEND_URL.rstrip("/"),  # Ensure no trailing slash
+        settings.FRONTEND_URL.rstrip("/"),
         "https://muzoscents.netlify.app",
-        "https://muzoscent.netlify.app",    # Listed both spellings just in case
+        "https://muzoscent.netlify.app",
         "capacitor://localhost",
-        "http://localhost:5173",            # Use explicit local ports
+        "http://localhost:5173",
         "http://localhost:3000",
     ],
-    # Optional: If you need localhost dynamic ports, use regex instead of wildcards:
-    # allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,6 +56,9 @@ app.include_router(profile.router)
 app.include_router(geo.router, prefix="/api/v1/geo", tags=["geo"])
 app.include_router(requests.router, prefix="/api/v1/requests", tags=["requests"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
+
+# 2. Register recommendations router with API v1 prefix
+app.include_router(recommendations.router, prefix="/api/v1/recommendations", tags=["recommendations"])
 
 @app.get("/")
 async def root():
