@@ -17,12 +17,20 @@ const Checkout: React.FC = () => {
   const { state } = useCart();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [address, setAddress] = useState('');
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
-  const [gateway, setGateway] = useState<'paystack' | 'monnify'>('paystack');
+
+  // Contact Info
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+
+  // Address State
+  const [streetAddress, setStreetAddress] = useState(''); // Populated by search/GPS
+  const [buildingDetails, setBuildingDetails] = useState(''); // e.g., "House 12B, Flat 3"
+  const [landmark, setLandmark] = useState(''); // e.g., "Opposite First Bank"
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+
+  // Gateway
+  const [gateway, setGateway] = useState<'paystack' | 'monnify'>('paystack');
 
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -52,7 +60,7 @@ const Checkout: React.FC = () => {
 
   // Debounced address search via OpenStreetMap (Nominatim)
   useEffect(() => {
-    if (!address.trim() || address.length < 3) {
+    if (!streetAddress.trim() || streetAddress.length < 3) {
       setSuggestions([]);
       return;
     }
@@ -62,7 +70,7 @@ const Checkout: React.FC = () => {
       try {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            address
+            streetAddress
           )}&addressdetails=1&limit=5`
         );
         const data = await response.json();
@@ -76,7 +84,7 @@ const Checkout: React.FC = () => {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [address]);
+  }, [streetAddress]);
 
   // Handle GPS location click
   const handleGetLocation = () => {
@@ -92,24 +100,22 @@ const Checkout: React.FC = () => {
         setLng(longitude);
 
         try {
-          // Attempt backend reverse-geocoding endpoint first
           const res = await api.post('/geo/reverse', { lat: latitude, lng: longitude });
           if (res.data?.address) {
-            setAddress(res.data.address);
+            setStreetAddress(res.data.address);
           }
         } catch (e) {
-          // Fallback to Nominatim if backend route fails
           try {
             const nomRes = await fetch(
               `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
             );
             const nomData = await nomRes.json();
             if (nomData.display_name) {
-              setAddress(nomData.display_name);
+              setStreetAddress(nomData.display_name);
             }
           } catch (err) {
             console.error('Reverse geocoding failed', err);
-            alert('Location acquired, but address lookup failed. Please type address manually.');
+            alert('Location acquired, but address lookup failed. Please enter address manually.');
           }
         } finally {
           setLoading(false);
@@ -124,7 +130,7 @@ const Checkout: React.FC = () => {
   };
 
   const handleSelectSuggestion = (item: Suggestion) => {
-    setAddress(item.display_name);
+    setStreetAddress(item.display_name);
     setLat(parseFloat(item.lat));
     setLng(parseFloat(item.lon));
     setShowSuggestions(false);
@@ -135,12 +141,20 @@ const Checkout: React.FC = () => {
     if (state.items.length === 0) return;
     setLoading(true);
 
+    // Combine into a clean full address for delivery agents
+    const fullAddress = `${buildingDetails ? buildingDetails + ', ' : ''}${streetAddress}${
+      landmark ? ' (Landmark: ' + landmark + ')' : ''
+    }`;
+
     try {
       const orderData = {
         customer_id: user?.id || 0,
         email,
         phone,
-        address,
+        address: fullAddress,
+        street_address: streetAddress,
+        building_details: buildingDetails,
+        landmark,
         latitude: lat,
         longitude: lng,
         total: state.total,
@@ -171,76 +185,115 @@ const Checkout: React.FC = () => {
         <div className="flex-1">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="label">Email</label>
+              <label className="label block text-xs font-medium text-[#4A4A4A] mb-1">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="input-field"
+                className="input-field w-full p-2 border rounded-md"
               />
             </div>
 
             <div>
-              <label className="label">Phone</label>
+              <label className="label block text-xs font-medium text-[#4A4A4A] mb-1">Phone Number</label>
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
-                className="input-field"
+                placeholder="e.g. 08012345678"
+                className="input-field w-full p-2 border rounded-md"
               />
             </div>
 
-            <div className="relative" ref={dropdownRef}>
-              <label className="label">Delivery Address</label>
-              <div className="flex gap-2">
-                <input
-                  value={address}
-                  onChange={(e) => {
-                    setAddress(e.target.value);
-                    setShowSuggestions(true);
-                  }}
-                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                  required
-                  className="flex-1 input-field"
-                  placeholder="Start typing address or use GPS"
-                />
-                <button
-                  type="button"
-                  onClick={handleGetLocation}
-                  disabled={loading}
-                  className="bg-[#43408C] text-white px-4 py-2 rounded-md hover:bg-[#332E6E] transition text-sm font-medium disabled:opacity-50"
-                >
-                  📍 Use GPS
-                </button>
+            {/* Address Group */}
+            <div className="space-y-4 border-t border-b border-[#E5E0D8] py-4">
+              <h2 className="text-sm font-semibold text-[#43408C]">Delivery Location</h2>
+
+              {/* Street / Area Field with Nominatim Autocomplete */}
+              <div className="relative" ref={dropdownRef}>
+                <label className="label block text-xs font-medium text-[#4A4A4A] mb-1">
+                  Street Name / Area
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    value={streetAddress}
+                    onChange={(e) => {
+                      setStreetAddress(e.target.value);
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                    required
+                    className="flex-1 input-field p-2 border rounded-md text-sm"
+                    placeholder="Search street, area, or city"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGetLocation}
+                    disabled={loading}
+                    className="bg-[#43408C] text-white px-3 py-2 rounded-md hover:bg-[#332E6E] transition text-xs font-medium whitespace-nowrap disabled:opacity-50"
+                  >
+                    📍 Use GPS
+                  </button>
+                </div>
+
+                {/* Suggestions Dropdown */}
+                {showSuggestions && (
+                  <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E5E0D8] rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {isFetchingSuggestions ? (
+                      <div className="p-3 text-xs text-gray-500">Searching locations...</div>
+                    ) : suggestions.length > 0 ? (
+                      suggestions.map((item) => (
+                        <button
+                          key={item.place_id}
+                          type="button"
+                          onClick={() => handleSelectSuggestion(item)}
+                          className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 text-xs text-gray-700 block transition"
+                        >
+                          {item.display_name}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-3 text-xs text-gray-500">No matching areas found</div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Suggestions Dropdown */}
-              {showSuggestions && (
-                <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E5E0D8] rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {isFetchingSuggestions ? (
-                    <div className="p-3 text-xs text-gray-500">Searching addresses...</div>
-                  ) : suggestions.length > 0 ? (
-                    suggestions.map((item) => (
-                      <button
-                        key={item.place_id}
-                        type="button"
-                        onClick={() => handleSelectSuggestion(item)}
-                        className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 text-xs text-gray-700 block transition"
-                      >
-                        {item.display_name}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="p-3 text-xs text-gray-500">No suggestions found</div>
-                  )}
+              {/* Doorstep Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="label block text-xs font-medium text-[#4A4A4A] mb-1">
+                    House / Flat / Suite No.
+                  </label>
+                  <input
+                    type="text"
+                    value={buildingDetails}
+                    onChange={(e) => setBuildingDetails(e.target.value)}
+                    required
+                    placeholder="e.g. House 12, Flat 3B"
+                    className="input-field w-full p-2 border rounded-md text-sm"
+                  />
                 </div>
-              )}
+
+                <div>
+                  <label className="label block text-xs font-medium text-[#4A4A4A] mb-1">
+                    Nearest Landmark / Note (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={landmark}
+                    onChange={(e) => setLandmark(e.target.value)}
+                    placeholder="e.g. Opposite GTBank"
+                    className="input-field w-full p-2 border rounded-md text-sm"
+                  />
+                </div>
+              </div>
             </div>
 
             <div>
-              <label className="label">Payment Gateway</label>
+              <label className="label block text-xs font-medium text-[#4A4A4A] mb-2">Payment Gateway</label>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                   <input
@@ -266,7 +319,7 @@ const Checkout: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full btn-primary flex justify-center py-3 bg-[#43408C] text-white rounded-md hover:bg-[#332E6E] transition disabled:opacity-50"
+              className="w-full btn-primary flex justify-center py-3 bg-[#43408C] text-white font-medium rounded-md hover:bg-[#332E6E] transition disabled:opacity-50"
             >
               {loading ? 'Processing...' : `Pay ${formatCurrency(state.total)}`}
             </button>
@@ -274,17 +327,17 @@ const Checkout: React.FC = () => {
         </div>
 
         <div className="md:w-80 bg-white p-6 rounded-lg shadow-sm border border-[#E5E0D8] h-fit">
-          <h3 className="font-semibold text-lg">Order Summary</h3>
+          <h3 className="font-semibold text-lg text-[#43408C]">Order Summary</h3>
           <div className="mt-4 space-y-2">
             {state.items.map((item) => (
               <div key={item.product_id} className="flex justify-between text-sm">
-                <span>
+                <span className="text-gray-600">
                   {item.name} × {item.quantity}
                 </span>
-                <span>{formatCurrency(item.unit_price * item.quantity)}</span>
+                <span className="font-medium">{formatCurrency(item.unit_price * item.quantity)}</span>
               </div>
             ))}
-            <div className="border-t border-[#E5E0D8] pt-2 mt-2 font-bold flex justify-between text-lg">
+            <div className="border-t border-[#E5E0D8] pt-2 mt-2 font-bold flex justify-between text-lg text-[#43408C]">
               <span>Total</span>
               <span>{formatCurrency(state.total)}</span>
             </div>
