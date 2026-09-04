@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles } from 'lucide-react'; // these work
+import { ArrowRight, Sparkles } from 'lucide-react';
 import api from '../lib/api';
 
 const Home: React.FC = () => {
   const [featured, setFeatured] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    api.get('/products?limit=4').then(res => setFeatured(res.data)).catch(console.error);
+    setLoading(true);
+    api.get('/products?limit=4')
+      .then(res => setFeatured(res.data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
   // Inline icons for trust badges
@@ -94,7 +99,7 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Featured Products – same as before */}
+      {/* Featured Products */}
       <section className="container py-20">
         <div className="flex items-center justify-between mb-12">
           <div>
@@ -107,33 +112,51 @@ const Home: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {featured.map((product: any, index: number) => (
-            <Link
-              to={`/product/${product.slug}`}
-              key={product.id}
-              className="product-card animate-fade-up"
-              style={{ animationDelay: `${index * 0.1}s` }}
-            >
-              <div className="image-wrapper">
-                {product.images && product.images.length > 0 ? (
-                  <img src={product.images[0]} alt={product.name} loading="lazy" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-6xl text-[#C9A96A]">🌸</div>
-                )}
-                <div className="badge">New</div>
-              </div>
-              <div className="p-5">
-                <h3 className="font-serif text-lg font-semibold text-[#1A1A1A] group-hover:text-[#43408C] transition">
-                  {product.name}
-                </h3>
-                <p className="text-sm text-[#4A4A4A]">{product.scent_family || 'Fragrance'}</p>
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xl font-bold text-[#43408C]">₦{Number(product.selling_price).toLocaleString()}</span>
-                  <span className="text-xs px-3 py-1 rounded-full bg-[#FAF9F6] text-[#4A4A4A]">In Stock</span>
+          {loading ? (
+            /* Skeleton Loading State */
+            Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="rounded-xl border border-gray-100 bg-white overflow-hidden shadow-sm animate-pulse">
+                <div className="w-full h-64 bg-gray-200" />
+                <div className="p-5 space-y-3">
+                  <div className="h-5 bg-gray-200 rounded w-3/4" />
+                  <div className="h-4 bg-gray-200 rounded w-1/2" />
+                  <div className="mt-4 flex items-center justify-between pt-2">
+                    <div className="h-6 bg-gray-200 rounded w-1/3" />
+                    <div className="h-5 bg-gray-200 rounded-full w-16" />
+                  </div>
                 </div>
               </div>
-            </Link>
-          ))}
+            ))
+          ) : (
+            /* Render Products */
+            featured.map((product: any, index: number) => (
+              <Link
+                to={`/product/${product.slug}`}
+                key={product.id}
+                className="product-card animate-fade-up"
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
+                <div className="image-wrapper">
+                  {product.images && product.images.length > 0 ? (
+                    <img src={product.images[0]} alt={product.name} loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-6xl text-[#C9A96A]">🌸</div>
+                  )}
+                  <div className="badge">New</div>
+                </div>
+                <div className="p-5">
+                  <h3 className="font-serif text-lg font-semibold text-[#1A1A1A] group-hover:text-[#43408C] transition">
+                    {product.name}
+                  </h3>
+                  <p className="text-sm text-[#4A4A4A]">{product.scent_family || 'Fragrance'}</p>
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-xl font-bold text-[#43408C]">₦{Number(product.selling_price).toLocaleString()}</span>
+                    <span className="text-xs px-3 py-1 rounded-full bg-[#FAF9F6] text-[#4A4A4A]">In Stock</span>
+                  </div>
+                </div>
+              </Link>
+            ))
+          )}
         </div>
       </section>
 
