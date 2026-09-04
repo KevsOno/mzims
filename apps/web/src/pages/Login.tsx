@@ -24,13 +24,30 @@ const Login: React.FC = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="label">Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="input-field"
+          />
         </div>
         <div>
           <label className="label">Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field" />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="input-field"
+          />
         </div>
-        <button type="submit" className="btn-primary w-full">Sign In</button>
+        <button type="submit" className="btn-primary w-full">
+          Sign In
+        </button>
+        <p className="mt-4 text-sm text-[#4A4A4A]">
+  Don't have an account? <Link to="/register" className="text-[#43408C] font-semibold">Sign up</Link>
+</p>
       </form>
     </div>
   );
