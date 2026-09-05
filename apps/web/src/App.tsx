@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Products from './pages/Products';
@@ -7,16 +8,27 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import PaymentVerify from './pages/PaymentVerify';
 import FragranceRequest from './pages/FragranceRequest';
-import Login from './pages/Login';               // <-- Import the actual Login
-import Register from './pages/Register';          // <-- Import Register
-import Welcome from './pages/Welcome';  // add import
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Welcome from './pages/Welcome';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import OrderTracking from './pages/OrderTracking';
 import { CartProvider } from './store/CartContext';
 import { AuthProvider } from './store/AuthContext';
 
-// 404 fallback (no separate file)
+// Helper component to reset scroll position on every navigation change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
+
+// 404 fallback
 const NotFound = () => (
   <div className="container py-16 text-center">
     <h1 className="text-4xl font-bold text-[#43408C] mb-4">404 - Page Not Found</h1>
@@ -33,6 +45,8 @@ const NotFound = () => (
 function App() {
   return (
     <Router>
+      {/* ScrollToTop component MUST be inside <Router> */}
+      <ScrollToTop />
       <AuthProvider>
         <CartProvider>
           <Layout>
@@ -47,8 +61,8 @@ function App() {
               <Route path="/payment/verify" element={<PaymentVerify />} />
               <Route path="/request-scent" element={<FragranceRequest />} />
               <Route path="/track/:reference" element={<OrderTracking />} />
-              <Route path="/login" element={<Login />} />   {/* Now uses the real component */}
-              <Route path="/register" element={<Register />} />    {/* New route */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
               <Route path="/welcome" element={<Welcome />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
