@@ -91,7 +91,7 @@ async def create_order(
             "customer_id": customer_id,
             "email": customer_email,
             "phone": order_data.phone,
-            "address": order_data.address,  # Insert into 'address' column
+            "delivery_address": order_data.address,  # Maps Pydantic address to DB 'delivery_address'
             "total": calculated_total,
             "currency": order_data.currency,
             "gateway": order_data.gateway.lower(),
