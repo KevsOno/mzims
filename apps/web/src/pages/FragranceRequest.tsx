@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../store/AuthContext';
 import api from '../lib/api';
 
@@ -8,19 +8,32 @@ const FragranceRequest: React.FC = () => {
   const [contact, setContact] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Auto-fill contact email if user is logged in
+  useEffect(() => {
+    if (user?.email) {
+      setContact(user.email);
+    }
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMessage('');
+
     try {
       await api.post('/requests', {
         request_text: requestText,
         contact: contact,
-        customer_id: user?.id || undefined,
+        customer_id: user?.id || null,
       });
       setSubmitted(true);
-    } catch (error) {
-      alert('Failed to submit request. Please try again.');
+    } catch (error: any) {
+      console.error('Request submission error:', error);
+      setErrorMessage(
+        error.response?.data?.message || 'Failed to submit request. Please check your credentials and try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -38,7 +51,15 @@ const FragranceRequest: React.FC = () => {
   return (
     <div className="container py-8 max-w-2xl mx-auto">
       <h1 className="text-2xl md:text-3xl font-serif text-[#43408C] mb-4">Request a Scent</h1>
-      <p className="text-[#4A4A4A] mb-6">Tell us what you're looking for – a specific fragrance, a note, a mood. We'll help you discover your perfect match.</p>
+      <p className="text-[#4A4A4A] mb-6">
+        Tell us what you're looking for – a specific fragrance, a note, a mood. We'll help you discover your perfect match.
+      </p>
+
+      {errorMessage && (
+        <div className="bg-red-50 text-red-600 p-3 rounded-md mb-4 text-sm">
+          {errorMessage}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
