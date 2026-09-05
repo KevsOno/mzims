@@ -8,8 +8,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 def send_internal_notification(subject: str, body: str):
+    # Defaulting to Port 587 to prevent Render port 465 timeouts
     smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", 465))
+    smtp_port = int(os.getenv("SMTP_PORT", 587))
     smtp_user = os.getenv("SMTP_USER")
     smtp_password = os.getenv("SMTP_PASSWORD")
     admin_email = os.getenv("NOTIFY_EMAIL") or os.getenv("ADMIN_EMAIL") or smtp_user
@@ -25,20 +26,21 @@ def send_internal_notification(subject: str, body: str):
     msg.attach(MIMEText(body, 'plain'))
 
     try:
-        # Resolve hostname strictly to IPv4 to prevent [Errno 101] Network Unreachable on Render
+        # Resolve strictly to IPv4 to prevent Render [Errno 101] Network Unreachable
         addr_info = socket.getaddrinfo(smtp_host, smtp_port, socket.AF_INET, socket.SOCK_STREAM)
         ipv4_target = addr_info[0][4][0]
 
         if smtp_port == 465:
-            # Force IPv4 connection over SSL
-            with smtplib.SMTP_SSL(ipv4_target, smtp_port, timeout=10) as server:
-                # Retain original hostname for TLS SNI handshake validation
+            with smtplib.SMTP_SSL(ipv4_target, smtp_port, timeout=15) as server:
                 server.server_hostname = smtp_host
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
         else:
-            with smtplib.SMTP(ipv4_target, smtp_port, timeout=10) as server:
+            # Port 587 STARTTLS workflow
+            with smtplib.SMTP(ipv4_target, smtp_port, timeout=15) as server:
+                server.ehlo()
                 server.starttls()
+                server.ehlo()
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
 
