@@ -45,7 +45,7 @@ const Checkout: React.FC = () => {
     if (user) {
       setEmail(user.email || '');
     }
-  }, []);
+  }, [user, state.items.length, navigate]);
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -148,8 +148,7 @@ const Checkout: React.FC = () => {
 
     try {
       const orderData = {
-        customer_id: user?.id || 0,
-        email,
+        guest_email: email, // Required by OrderCreate model for unauthenticated users
         phone,
         address: fullAddress,
         street_address: streetAddress,
@@ -157,21 +156,32 @@ const Checkout: React.FC = () => {
         landmark,
         latitude: lat,
         longitude: lng,
-        total: state.total,
+        total: Number(state.total),
         currency: 'NGN',
         gateway,
         items: state.items.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
-          unit_price: item.unit_price,
+          unit_price: Number(item.unit_price),
         })),
       };
 
-      const res = await api.post('/orders', orderData);
+      // Explicitly including trailing slash to prevent 307 redirects
+      const res = await api.post('/orders/', orderData);
+      
       const { authorization_url } = res.data;
-      window.location.href = authorization_url;
+      if (authorization_url) {
+        window.location.href = authorization_url;
+      } else {
+        alert('Could not obtain checkout URL from payment gateway.');
+      }
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Checkout failed. Please try again.');
+      console.error('Checkout error details:', error.response?.data);
+      alert(
+        error.response?.data?.detail?.[0]?.msg ||
+        error.response?.data?.detail ||
+        'Checkout failed. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
