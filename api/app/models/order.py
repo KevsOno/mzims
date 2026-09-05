@@ -1,85 +1,13 @@
-# app/models/order.py
-
 import enum
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
-from sqlalchemy import (
-    Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
-)
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-
-from app.database import Base   # Ensure this imports your SQLAlchemy Base
-
-# ==============================
-# 1. SQLAlchemy Models (for old router)
-# ==============================
-
-class Customer(Base):
-    __tablename__ = "customers"
-
-    id = Column(Integer, primary_key=True, index=True)
-    supabase_auth_user_id = Column(String, unique=True, index=True, nullable=False)
-    email = Column(String, unique=True, index=True, nullable=False)
-    phone = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    orders = relationship("Order", back_populates="customer")
-    addresses = relationship("Address", back_populates="customer")
-
-
-class Address(Base):
-    __tablename__ = "addresses"
-
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
-    lat = Column(Float, nullable=True)
-    lng = Column(Float, nullable=True)
-    formatted_address = Column(Text, nullable=False)
-    is_default = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    customer = relationship("Customer", back_populates="addresses")
-
-
-class Order(Base):
-    __tablename__ = "orders"
-
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
-    total = Column(Float, nullable=False)
-    currency = Column(String(3), nullable=False)
-    gateway = Column(String(20), nullable=False)
-    status = Column(String(20), default="pending")
-    delivery_address = Column(Text, nullable=True)
-    phone = Column(String, nullable=True)
-    email = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    customer = relationship("Customer", back_populates="orders")
-    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
-
-
-class OrderItem(Base):
-    __tablename__ = "order_items"
-
-    id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
-    product_id = Column(Integer, nullable=False)
-    quantity = Column(Integer, nullable=False)
-    unit_price = Column(Float, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    order = relationship("Order", back_populates="items")
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 # ==============================
-# 2. Order Status Enum (used by both routers)
+# 1. Order Status Enum
 # ==============================
 
 class OrderStatus(str, enum.Enum):
@@ -88,44 +16,85 @@ class OrderStatus(str, enum.Enum):
     SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
+    STOCK_UNAVAILABLE = "stock_unavailable"
 
 
 # ==============================
-# 3. Pydantic Schemas (for Supabase router)
+# 2. Pydantic Schemas (Supabase Native)
 # ==============================
 
 class OrderItemCreate(BaseModel):
     product_id: int
-    quantity: int
-    unit_price: Decimal
+    quantity: int = Field(gt=0, description="Quantity must be greater than 0")
+    unit_price: Decimal = Field(gt=0, description="Unit price must be positive")
+
+    @field_validator("unit_price", mode="before")
+    @classmethod
+    def parse_decimal(cls, v):
+        if isinstance(v, (str, int, float)):
+            return Decimal(str(v))
+        return v
 
 
 class OrderCreate(BaseModel):
-    customer_id: Optional[str] = None        # Supabase auth user ID (string)
-    guest_email: Optional[str] = None        # for guest checkout
-    email: Optional[str] = None              # fallback
+    customer_id: Optional[str] = None
+    guest_email: Optional[str] = Field(None, alias="email")
+    email: Optional[str] = None
     phone: Optional[str] = None
-    address: str
+    
+    # Accepts 'address' or 'shipping_address' from frontend payload
+    address: str = Field(..., validation_alias="shipping_address")
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    total: Decimal
-    currency: str
-    gateway: str                             # "paystack" or "monnify"
+    
+    total: Decimal = Field(gt=0)
+    currency: str = "NGN"
+    
+    # Accepts 'gateway' or 'payment_gateway' from frontend payload
+    gateway: str = Field(..., validation_alias="payment_gateway")
+    
     items: List[OrderItemCreate]
+
+    @field_validator("total", mode="before")
+    @classmethod
+    def parse_total(cls, v):
+        if isinstance(v, (str, int, float)):
+            return Decimal(str(v))
+        return v
+
+    @field_validator("guest_email", mode="before")
+    @classmethod
+    def resolve_guest_email(cls, v, info: ValidationInfo):
+        # Fallback check if email was supplied directly under 'email' key
+        if not v and "email" in info.data:
+            return info.data.get("email")
+        return v
+
+    class Config:
+        populate_by_name = True
+
+
+class OrderItemResponse(BaseModel):
+    id: int
+    order_id: int
+    product_id: int
+    quantity: int
+    unit_price: float
+    created_at: datetime
 
 
 class OrderResponse(BaseModel):
     id: int
-    customer_id: Optional[int] = None
+    customer_id: Optional[str] = None
     total: float
     currency: str
     gateway: str
     status: OrderStatus
-    delivery_address: Optional[str] = None
+    address: Optional[str] = None
     phone: Optional[str] = None
     email: str
     created_at: datetime
     updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True   # Pydantic v2 ORM mode
+        from_attributes = True
