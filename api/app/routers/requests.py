@@ -7,39 +7,50 @@ from ..services.email import send_internal_notification
 from .auth import get_current_user
 from typing import Optional
 
+# Set redirect_slashes=False or handle both endpoints to prevent browser token-dropping redirects
 router = APIRouter()
 
+@router.post("", response_model=FragranceRequestResponse)
 @router.post("/", response_model=FragranceRequestResponse)
 async def create_fragrance_request(
     request_data: FragranceRequestCreate,
     background_tasks: BackgroundTasks,
-    current_user: Optional[dict] = Depends(get_current_user),  # optional, guests can submit
+    current_user: Optional[dict] = Depends(get_current_user),  # Optional auth for guests
     supabase: Client = Depends(get_supabase_client)
 ):
-    # If user is authenticated, link customer_id
-    if current_user:
-        request_data.customer_id = current_user['id']
-    
-    # Insert into DB
-    resp = supabase.table("fragrance_requests").insert(request_data.dict()).execute()
-    if not resp.data:
-        raise HTTPException(status_code=500, detail="Failed to create request")
-    new_req = resp.data[0]
-    
-    # Sync to Mailchimp (if we have email/contact)
-    if request_data.contact and "@" in request_data.contact:
+    # Convert Pydantic model to dictionary excluding unset values
+    payload = request_data.model_dump() if hasattr(request_data, 'model_dump') else request_data.dict()
+
+    # Link authenticated user ID if present
+    if current_user and "id" in current_user:
+        payload["customer_id"] = current_user["id"]
+
+    try:
+        # Insert into Database
+        resp = supabase.table("fragrance_requests").insert(payload).execute()
+        
+        if not resp.data:
+            raise HTTPException(status_code=500, detail="Failed to create request in database")
+        
+        new_req = resp.data[0]
+
+        # Sync to Mailchimp in background
+        if request_data.contact and "@" in request_data.contact:
+            background_tasks.add_task(
+                MailchimpService().add_or_update_subscriber,
+                email=request_data.contact,
+                tags=["fragrance-request"]
+            )
+
+        # Send internal notification via email in background
         background_tasks.add_task(
-            MailchimpService().add_or_update_subscriber,
-            email=request_data.contact,
-            tags=["fragrance-request"]
+            send_internal_notification,
+            subject=f"New Fragrance Request: {new_req.get('id')}",
+            body=f"Request: {request_data.request_text}\nContact: {request_data.contact}"
         )
-        # Also send a receipt to customer via Mailchimp transactional (or separate)
-    
-    # Internal notification via SMTP
-    background_tasks.add_task(
-        send_internal_notification,
-        subject=f"New Fragrance Request: {new_req['id']}",
-        body=f"Request: {request_data.request_text}\nContact: {request_data.contact}"
-    )
-    
-    return new_req
+
+        return new_req
+
+    except Exception as e:
+        print(f"Error processing fragrance request: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
