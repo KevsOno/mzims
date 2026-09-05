@@ -1,8 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
+
 from .core.config import settings
 from .core.security import SecurityHeadersMiddleware
 
@@ -13,7 +16,7 @@ from .routers import (
     checkout,
     geo,
     orders,
-    payments,  # Added new payments router
+    payments,
     products,
     profile,
     recommendations,
@@ -24,11 +27,13 @@ from .routers import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Muzoscent API...")
     yield
     logger.info("Shutting down...")
+
 
 app = FastAPI(
     title="Muzoscent API",
@@ -37,8 +42,24 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
+    openapi_url="/api/openapi.json",
+    redirect_slashes=False,  # Prevents 307 redirects for missing/extra trailing slashes
 )
+
+
+# Exception Handlers
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Custom error handler for 422 validation errors.
+    Logs the validation failure details and returns the failed payload body along with exact validation errors.
+    """
+    logger.error(f"Validation error for {request.url}: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
+
 
 # Middleware
 app.add_middleware(SecurityHeadersMiddleware)
@@ -62,7 +83,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(products.router, prefix="/api/v1/products", tags=["products"])
 app.include_router(checkout.router, prefix="/api/v1/checkout", tags=["checkout"])
-app.include_router(payments.router, prefix="/api/v1/payments", tags=["payments"])  # Added payments route
+app.include_router(payments.router, prefix="/api/v1/payments", tags=["payments"])
 app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 app.include_router(profile.router, prefix="/api/v1/profile", tags=["profile"])
@@ -71,9 +92,11 @@ app.include_router(requests.router, prefix="/api/v1/requests", tags=["requests"]
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
 app.include_router(recommendations.router, prefix="/api/v1/recommendations", tags=["recommendations"])
 
+
 @app.get("/")
 async def root():
     return {"message": "Muzoscent API", "status": "operational"}
+
 
 @app.get("/health")
 async def health():
