@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -14,19 +13,26 @@ from ..services.paystack import PaystackService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
+security = HTTPBearer(auto_error=True)  # Set auto_error to True to block unauthenticated calls immediately
 
 
-async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     supabase: Client = Depends(get_supabase_client)
-) -> Optional[dict]:
+) -> dict:
+    """Strictly requires an authenticated customer account."""
     if not credentials:
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to place an order."
+        )
     try:
         user = supabase.auth.get_user(credentials.credentials)
         if not user or not user.user:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired authentication token."
+            )
 
         resp = (
             supabase.table("customers")
@@ -34,10 +40,20 @@ async def get_current_user_optional(
             .eq("supabase_auth_user_id", user.user.id)
             .execute()
         )
-        return resp.data[0] if resp.data else None
+        if not resp.data:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Customer account profile not found."
+            )
+        return resp.data[0]
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning(f"Failed to resolve user token: {e}")
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not authenticate request."
+        )
 
 
 @router.get("/track/{reference}")
@@ -58,22 +74,19 @@ async def track_order(reference: str, supabase: Client = Depends(get_supabase_cl
 async def create_order(
     order_data: OrderCreate,
     background_tasks: BackgroundTasks,
-    current_user: Optional[dict] = Depends(get_current_user_optional),
+    current_user: dict = Depends(get_current_user),  # Enforce required authentication
     supabase: Client = Depends(get_supabase_client)
 ):
     try:
-        # 1. Resolve Customer ID & Email
-        if current_user:
-            customer_id = current_user["id"]
-            customer_email = current_user.get("email") or order_data.guest_email
-        else:
-            customer_email = order_data.guest_email
-            if not customer_email:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email address is required for checkout."
-                )
-            customer_id = None
+        # 1. Resolve Customer Details from Session
+        customer_id = current_user["id"]
+        customer_email = current_user.get("email") or order_data.guest_email
+
+        if not customer_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email address is required for checkout."
+            )
 
         # 2. Price Integrity Check
         calculated_total = float(sum(float(item.unit_price) * item.quantity for item in order_data.items))
@@ -123,6 +136,7 @@ async def create_order(
 
         # 6. Initialize Payment Gateway Transaction
         gateway = order_data.gateway.lower()
+        customer_name = current_user.get("first_name", "Valued Customer")
         
         if gateway == "paystack":
             service = PaystackService()
@@ -138,7 +152,7 @@ async def create_order(
                 order_id=order_id,
                 amount=calculated_total,
                 email=customer_email,
-                customer_name=current_user.get("first_name", "Guest Customer") if current_user else "Guest Customer"
+                customer_name=customer_name
             )
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported payment gateway: {gateway}")
