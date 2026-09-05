@@ -11,3 +11,4 @@ email-validator==2.2.0
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.9
 greenlet>=3.0.0
+mailchimp-marketing>=3.0.80
