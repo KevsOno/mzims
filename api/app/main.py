@@ -13,6 +13,7 @@ from .routers import (
     checkout,
     geo,
     orders,
+    payments,  # Added new payments router
     products,
     profile,
     recommendations,
@@ -61,6 +62,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(products.router, prefix="/api/v1/products", tags=["products"])
 app.include_router(checkout.router, prefix="/api/v1/checkout", tags=["checkout"])
+app.include_router(payments.router, prefix="/api/v1/payments", tags=["payments"])  # Added payments route
 app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 app.include_router(profile.router, prefix="/api/v1/profile", tags=["profile"])
