@@ -2,11 +2,18 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
 
+interface SignUpMetadata {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  [key: string]: any;
+}
+
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, metadata?: SignUpMetadata) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -35,8 +42,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) throw error;
   };
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
+  const signUp = async (email: string, password: string, metadata?: SignUpMetadata) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: metadata, // Stores metadata in raw_user_meta_data
+      },
+    });
     if (error) throw error;
   };
 
