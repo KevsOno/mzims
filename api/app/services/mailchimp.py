@@ -1,34 +1,37 @@
-import httpx
-from ..core.config import settings
+import mailchimp_marketing as MailchimpMarketing
+from mailchimp_marketing.api_client import ApiClientError
+import os
 
 class MailchimpService:
-    BASE_URL = f"https://{settings.MAILCHIMP_SERVER_PREFIX}.api.mailchimp.com/3.0"
-    
     def __init__(self):
-        self.api_key = settings.MAILCHIMP_API_KEY
-        self.list_id = settings.MAILCHIMP_LIST_ID
-        self.headers = {
-            "Authorization": f"apikey {self.api_key}",
-            "Content-Type": "application/json"
-        }
-    
-    async def add_or_update_subscriber(self, email: str, tags: list = None, status: str = "subscribed"):
-        """
-        Add or update a subscriber in the Mailchimp list.
-        """
-        member_data = {
-            "email_address": email,
-            "status_if_new": status,
-            "tags": [{"name": t, "status": "active"} for t in (tags or [])]
-        }
-        async with httpx.AsyncClient() as client:
-            resp = await client.put(
-                f"{self.BASE_URL}/lists/{self.list_id}/members/{self._hash_email(email)}",
-                json=member_data,
-                headers=self.headers
-            )
-            return resp.json()
-    
-    def _hash_email(self, email: str) -> str:
-        import hashlib
-        return hashlib.md5(email.lower().encode()).hexdigest()
+        self.api_key = os.getenv("MAILCHIMP_API_KEY")
+        self.server_prefix = os.getenv("MAILCHIMP_SERVER_PREFIX")
+        self.list_id = os.getenv("MAILCHIMP_LIST_ID")
+        
+        if self.api_key and self.server_prefix:
+            MailchimpMarketing.Client().set_config({
+                "api_key": self.api_key,
+                "server": self.server_prefix
+            })
+
+    def add_or_update_subscriber(self, email: str, tags: list = None):
+        if not self.list_id or not self.api_key:
+            print("⚠️ Mailchimp API Key or List ID missing in environment variables.")
+            return
+
+        try:
+            client = MailchimpMarketing.Client()
+            client.set_config({
+                "api_key": self.api_key,
+                "server": self.server_prefix
+            })
+
+            # Add subscriber or update tags
+            response = client.lists.add_list_member(self.list_id, {
+                "email_address": email,
+                "status": "subscribed",
+                "tags": tags or ["fragrance-request"]
+            })
+            print(f"✅ Mailchimp subscriber added/updated: {email}")
+        except ApiClientError as error:
+            print(f"⚠️ Mailchimp API error: {error.text}")
