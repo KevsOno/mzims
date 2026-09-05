@@ -77,10 +77,10 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks):
         reference = event_data.get("reference")
         supabase = get_supabase_client()
 
-        # 1. Idempotency Check
+        # 1. Idempotency Check (FIXED: selected 'gateway_event_id' instead of 'id')
         existing = (
             supabase.table("processed_webhooks")
-            .select("id")
+            .select("gateway_event_id")
             .eq("gateway_event_id", reference)
             .eq("gateway", "paystack")
             .execute()
