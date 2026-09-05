@@ -138,6 +138,13 @@ const Checkout: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Redirect to login if user is unauthenticated
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
     if (state.items.length === 0) return;
     setLoading(true);
 
@@ -148,7 +155,7 @@ const Checkout: React.FC = () => {
 
     try {
       const orderData = {
-        guest_email: email, // Required by OrderCreate model for unauthenticated users
+        guest_email: email,
         phone,
         address: fullAddress,
         street_address: streetAddress,
@@ -166,7 +173,6 @@ const Checkout: React.FC = () => {
         })),
       };
 
-      // Explicitly including trailing slash to prevent 307 redirects
       const res = await api.post('/orders/', orderData);
       
       const { authorization_url } = res.data;
@@ -193,6 +199,20 @@ const Checkout: React.FC = () => {
 
       <div className="flex flex-col md:flex-row gap-8">
         <div className="flex-1">
+          {/* Sign-in Requirement Warning Banner */}
+          {!user && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-md text-sm flex items-center justify-between">
+              <span>You are not signed in. Please sign in to complete your checkout.</span>
+              <button
+                type="button"
+                onClick={() => navigate('/login')}
+                className="underline font-semibold hover:text-amber-900 ml-4"
+              >
+                Sign In
+              </button>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="label block text-xs font-medium text-[#4A4A4A] mb-1">Email</label>
@@ -201,7 +221,8 @@ const Checkout: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="input-field w-full p-2 border rounded-md"
+                disabled={!user}
+                className="input-field w-full p-2 border rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -212,8 +233,9 @@ const Checkout: React.FC = () => {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
+                disabled={!user}
                 placeholder="e.g. 08012345678"
-                className="input-field w-full p-2 border rounded-md"
+                className="input-field w-full p-2 border rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -235,21 +257,22 @@ const Checkout: React.FC = () => {
                     }}
                     onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                     required
-                    className="flex-1 input-field p-2 border rounded-md text-sm"
+                    disabled={!user}
+                    className="flex-1 input-field p-2 border rounded-md text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                     placeholder="Search street, area, or city"
                   />
                   <button
                     type="button"
                     onClick={handleGetLocation}
-                    disabled={loading}
-                    className="bg-[#43408C] text-white px-3 py-2 rounded-md hover:bg-[#332E6E] transition text-xs font-medium whitespace-nowrap disabled:opacity-50"
+                    disabled={loading || !user}
+                    className="bg-[#43408C] text-white px-3 py-2 rounded-md hover:bg-[#332E6E] transition text-xs font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     📍 Use GPS
                   </button>
                 </div>
 
                 {/* Suggestions Dropdown */}
-                {showSuggestions && (
+                {showSuggestions && user && (
                   <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E5E0D8] rounded-md shadow-lg max-h-60 overflow-y-auto">
                     {isFetchingSuggestions ? (
                       <div className="p-3 text-xs text-gray-500">Searching locations...</div>
@@ -282,8 +305,9 @@ const Checkout: React.FC = () => {
                     value={buildingDetails}
                     onChange={(e) => setBuildingDetails(e.target.value)}
                     required
+                    disabled={!user}
                     placeholder="e.g. House 12, Flat 3B"
-                    className="input-field w-full p-2 border rounded-md text-sm"
+                    className="input-field w-full p-2 border rounded-md text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
 
@@ -295,8 +319,9 @@ const Checkout: React.FC = () => {
                     type="text"
                     value={landmark}
                     onChange={(e) => setLandmark(e.target.value)}
+                    disabled={!user}
                     placeholder="e.g. Opposite GTBank"
-                    className="input-field w-full p-2 border rounded-md text-sm"
+                    className="input-field w-full p-2 border rounded-md text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -310,6 +335,7 @@ const Checkout: React.FC = () => {
                     type="radio"
                     value="paystack"
                     checked={gateway === 'paystack'}
+                    disabled={!user}
                     onChange={() => setGateway('paystack')}
                   />
                   Paystack
@@ -319,6 +345,7 @@ const Checkout: React.FC = () => {
                     type="radio"
                     value="monnify"
                     checked={gateway === 'monnify'}
+                    disabled={!user}
                     onChange={() => setGateway('monnify')}
                   />
                   Monnify
@@ -326,13 +353,24 @@ const Checkout: React.FC = () => {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full btn-primary flex justify-center py-3 bg-[#43408C] text-white font-medium rounded-md hover:bg-[#332E6E] transition disabled:opacity-50"
-            >
-              {loading ? 'Processing...' : `Pay ${formatCurrency(state.total)}`}
-            </button>
+            {/* Dynamic Action Button */}
+            {!user ? (
+              <button
+                type="button"
+                onClick={() => navigate('/login')}
+                className="w-full py-3 bg-[#43408C] text-white font-medium rounded-md hover:bg-[#332E6E] transition"
+              >
+                Sign In to Place Order
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full btn-primary flex justify-center py-3 bg-[#43408C] text-white font-medium rounded-md hover:bg-[#332E6E] transition disabled:opacity-50"
+              >
+                {loading ? 'Processing...' : `Pay ${formatCurrency(state.total)}`}
+              </button>
+            )}
           </form>
         </div>
 
