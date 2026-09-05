@@ -36,7 +36,7 @@ async def get_current_user_optional(
         )
         return resp.data[0] if resp.data else None
     except Exception as e:
-        logger.warning(f"Failed to resolve authenticated user: {e}")
+        logger.warning(f"Failed to resolve user token: {e}")
         return None
 
 
@@ -75,23 +75,23 @@ async def create_order(
                 )
             customer_id = None
 
-        # 2. Price Verification
+        # 2. Price Integrity Check
         calculated_total = float(sum(float(item.unit_price) * item.quantity for item in order_data.items))
         order_total = float(order_data.total)
         
         if abs(calculated_total - order_total) > 0.01:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
-                detail=f"Total amount mismatch. Calculated: {calculated_total}, Sent: {order_total}"
+                detail=f"Total mismatch. Calculated: {calculated_total}, Received: {order_total}"
             )
 
-        # 3. DB Schema-Matched Dictionary Construction
+        # 3. Construct Payload Matching Exact Supabase Columns
         now_iso = datetime.now(timezone.utc).isoformat()
         order_dict = {
             "customer_id": customer_id,
             "email": customer_email,
             "phone": order_data.phone,
-            "delivery_address": order_data.address,
+            "address": order_data.address,  # Insert into 'address' column
             "total": calculated_total,
             "currency": order_data.currency,
             "gateway": order_data.gateway.lower(),
@@ -100,10 +100,10 @@ async def create_order(
             "updated_at": now_iso
         }
 
-        # 4. Insert Order
+        # 4. Insert Order Record
         resp = supabase.table("orders").insert(order_dict).execute()
         if not resp.data:
-            raise HTTPException(status_code=500, detail="Database failure while creating order record")
+            raise HTTPException(status_code=500, detail="Database insertion failed")
         
         order = resp.data[0]
         order_id = order["id"]
@@ -121,7 +121,7 @@ async def create_order(
 
         supabase.table("order_items").insert(items).execute()
 
-        # 6. Initialize Payment Gateway with `await` handling
+        # 6. Initialize Payment Gateway Transaction
         gateway = order_data.gateway.lower()
         
         if gateway == "paystack":
@@ -143,7 +143,7 @@ async def create_order(
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported payment gateway: {gateway}")
 
-        # 7. Update order with gateway reference
+        # 7. Update gateway reference
         supabase.table("orders").update({
             "gateway_reference": payment_data["reference"]
         }).eq("id", order_id).execute()
