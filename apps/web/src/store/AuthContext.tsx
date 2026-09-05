@@ -48,6 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       password,
       options: {
         data: metadata, // Stores metadata in raw_user_meta_data
+        emailRedirectTo: `${window.location.origin}/welcome`, // Directs confirmation link to /welcome
       },
     });
     if (error) throw error;
