@@ -84,17 +84,20 @@ async def create_order(
             )
         customer_id = None  # Set to None for nullable FK in Supabase DB schema
 
-    # 2. Recalculate total to ensure price integrity
-    calculated_total = sum(item.unit_price * item.quantity for item in order_data.items)
-    if abs(calculated_total - order_data.total) > 0.01:
+    # 2. Recalculate total to ensure price integrity (explicitly cast sum to float)
+    calculated_total = float(sum(float(item.unit_price) * item.quantity for item in order_data.items))
+    order_total = float(order_data.total)
+    
+    if abs(calculated_total - order_total) > 0.01:
         raise HTTPException(status_code=400, detail="Total amount mismatch")
 
-    # 3. Construct Order dictionary
-    order_dict = order_data.model_dump(exclude={"items", "guest_email"}, exclude_unset=True)
+    # 3. Construct Order dictionary using mode="json" to cast Decimals to floats
+    order_dict = order_data.model_dump(mode="json", exclude={"items", "guest_email"}, exclude_unset=True)
     now_iso = datetime.now(timezone.utc).isoformat()
 
     order_dict["customer_id"] = customer_id
     order_dict["status"] = OrderStatus.PENDING.value
+    order_dict["total"] = calculated_total
     order_dict["created_at"] = now_iso
     order_dict["updated_at"] = now_iso
 
@@ -106,11 +109,12 @@ async def create_order(
     order = resp.data[0]
     order_id = order["id"]
 
-    # 5. Insert Order Items
+    # 5. Insert Order Items using mode="json" to serialize prices
     items = []
     for item in order_data.items:
-        item_dict = item.model_dump()
+        item_dict = item.model_dump(mode="json")
         item_dict["order_id"] = order_id
+        item_dict["unit_price"] = float(item.unit_price)
         items.append(item_dict)
 
     supabase.table("order_items").insert(items).execute()
