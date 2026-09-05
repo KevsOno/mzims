@@ -52,6 +52,7 @@ async def track_order(reference: str, supabase: Client = Depends(get_supabase_cl
     return resp.data[0]
 
 
+@router.post("", response_model=dict)
 @router.post("/", response_model=dict)
 async def create_order(
     order_data: OrderCreate,
