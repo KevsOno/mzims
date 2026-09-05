@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -8,8 +8,7 @@ from supabase import Client
 
 from ..core.config import settings
 from ..core.db import get_supabase_client
-from ..models.customer import CustomerResponse
-from ..models.order import OrderCreate, OrderResponse, OrderStatus
+from ..models.order import OrderCreate, OrderStatus
 from ..services.monnify import MonnifyService
 from ..services.paystack import PaystackService
 
@@ -23,8 +22,8 @@ async def get_current_user_optional(
     supabase: Client = Depends(get_supabase_client)
 ) -> Optional[dict]:
     """
-    Optional authentication dependency.
-    Returns the customer dictionary if a valid JWT is provided; otherwise returns None (guest).
+    Optional auth dependency using Supabase Auth JWT.
+    Returns customer metadata or None for guest checkouts.
     """
     if not credentials:
         return None
@@ -33,7 +32,6 @@ async def get_current_user_optional(
         if not user or not user.user:
             return None
 
-        # Fetch the customer record linked to the authenticated Supabase user
         resp = (
             supabase.table("customers")
             .select("*")
@@ -41,7 +39,8 @@ async def get_current_user_optional(
             .execute()
         )
         return resp.data[0] if resp.data else None
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Auth verification failed: {str(e)}")
         return None
 
 
@@ -59,6 +58,7 @@ async def track_order(reference: str, supabase: Client = Depends(get_supabase_cl
 
 
 @router.post("/", response_model=dict)
+@router.post("", response_model=dict, include_in_schema=False)
 async def create_order(
     order_data: OrderCreate,
     background_tasks: BackgroundTasks,
@@ -66,62 +66,69 @@ async def create_order(
     supabase: Client = Depends(get_supabase_client)
 ):
     """
-    Create an order with items.
-    Supports both authenticated customers and guest checkout.
-    Returns a payment initialization URL.
+    Creates an order and items directly in Supabase.
+    Supports both registered customers and guest checkouts seamlessly.
     """
-    # 1. Determine customer_id (authenticated vs. guest)
+    # 1. Resolve customer identity & email
     if current_user:
-        customer_id = current_user["id"]
-        customer_email = current_user.get("email") or order_data.guest_email
+        customer_id = current_user.get("id")
+        customer_email = current_user.get("email") or order_data.guest_email or order_data.email
     else:
-        # Require a guest email if no authenticated user is present
-        customer_email = getattr(order_data, "guest_email", None)
+        customer_email = order_data.guest_email or order_data.email
         if not customer_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email address is required for guest checkout."
+                detail="A valid email address is required for checkout."
             )
-        customer_id = None  # Set to None for nullable FK in Supabase DB schema
+        customer_id = None
 
-    # 2. Recalculate total to ensure price integrity (explicitly cast sum to float)
+    # 2. Recalculate and verify prices
     calculated_total = float(sum(float(item.unit_price) * item.quantity for item in order_data.items))
     order_total = float(order_data.total)
-    
+
     if abs(calculated_total - order_total) > 0.01:
-        raise HTTPException(status_code=400, detail="Total amount mismatch")
+        raise HTTPException(status_code=400, detail="Order total mismatch")
 
-    # 3. Construct Order dictionary using mode="json" to cast Decimals to floats
-    order_dict = order_data.model_dump(mode="json", exclude={"items", "guest_email"}, exclude_unset=True)
+    # 3. Construct Order object for Supabase
     now_iso = datetime.now(timezone.utc).isoformat()
+    order_dict = {
+        "customer_id": customer_id,
+        "email": customer_email,
+        "phone": order_data.phone,
+        "address": order_data.address,
+        "latitude": order_data.latitude,
+        "longitude": order_data.longitude,
+        "total": calculated_total,
+        "currency": order_data.currency.upper(),
+        "gateway": order_data.gateway.lower(),
+        "status": OrderStatus.PENDING.value,
+        "created_at": now_iso,
+        "updated_at": now_iso
+    }
 
-    order_dict["customer_id"] = customer_id
-    order_dict["status"] = OrderStatus.PENDING.value
-    order_dict["total"] = calculated_total
-    order_dict["created_at"] = now_iso
-    order_dict["updated_at"] = now_iso
-
-    # 4. Insert Order into Database
+    # 4. Insert Order into Supabase
     resp = supabase.table("orders").insert(order_dict).execute()
     if not resp.data:
-        raise HTTPException(status_code=500, detail="Failed to create order")
-    
+        raise HTTPException(status_code=500, detail="Failed to save order to database")
+
     order = resp.data[0]
     order_id = order["id"]
 
-    # 5. Insert Order Items using mode="json" to serialize prices
-    items = []
-    for item in order_data.items:
-        item_dict = item.model_dump(mode="json")
-        item_dict["order_id"] = order_id
-        item_dict["unit_price"] = float(item.unit_price)
-        items.append(item_dict)
-
+    # 5. Insert Order Items into Supabase
+    items = [
+        {
+            "order_id": order_id,
+            "product_id": item.product_id,
+            "quantity": item.quantity,
+            "unit_price": float(item.unit_price)
+        }
+        for item in order_data.items
+    ]
     supabase.table("order_items").insert(items).execute()
 
     # 6. Initialize Payment Gateway Transaction
     gateway = order_data.gateway.lower()
-    
+
     if gateway == "paystack":
         service = PaystackService()
         payment_data = service.initialize_transaction(
@@ -130,6 +137,12 @@ async def create_order(
             email=customer_email,
             callback_url=f"{settings.FRONTEND_URL}/payment/verify"
         )
+        
+        # Save payment reference back to order record
+        supabase.table("orders").update({
+            "gateway_reference": payment_data["reference"]
+        }).eq("id", order_id).execute()
+
         return {
             "order_id": order_id,
             "authorization_url": payment_data["authorization_url"],
@@ -144,6 +157,11 @@ async def create_order(
             email=customer_email,
             customer_name=current_user.get("first_name", "Guest Customer") if current_user else "Guest Customer"
         )
+
+        supabase.table("orders").update({
+            "gateway_reference": payment_data["reference"]
+        }).eq("id", order_id).execute()
+
         return {
             "order_id": order_id,
             "authorization_url": payment_data["authorization_url"],
