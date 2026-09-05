@@ -1,16 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext';
+import { supabase } from '../lib/supabase';
 import { CheckCircle } from 'lucide-react';
 
 const Welcome: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(5);
+  const [verifying, setVerifying] = useState(true);
 
-  // Once the user is authenticated (email confirmed), start countdown
   useEffect(() => {
-    if (user) {
+    // Force Supabase to evaluate current session/hash parameters upon mounting
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setVerifying(false);
+        } else {
+          // Brief timeout buffer to allow onAuthStateChange in AuthContext to process hash fragment
+          const timer = setTimeout(() => {
+            setVerifying(false);
+          }, 1500);
+          return () => clearTimeout(timer);
+        }
+      } catch (err) {
+        console.error('Error verifying session on welcome page:', err);
+        setVerifying(false);
+      }
+    };
+
+    checkSession();
+  }, []);
+
+  // Handle redirect timer once user is fully resolved
+  useEffect(() => {
+    if (user && !verifying) {
       const timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
@@ -23,26 +48,25 @@ const Welcome: React.FC = () => {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [user, navigate]);
+  }, [user, verifying, navigate]);
 
-  // If still loading or not authenticated yet, show a spinner
-  if (loading) {
+  // Show spinner during initial AuthContext load or active session check
+  if (authLoading || verifying) {
     return (
       <div className="container py-16 text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#43408C] mx-auto"></div>
-        <p className="mt-4 text-[#4A4A4A]">Verifying your email...</p>
+        <p className="mt-4 text-[#4A4A4A]">Verifying your email session...</p>
       </div>
     );
   }
 
-  // If not authenticated after loading, maybe the confirmation failed.
-  // We'll show a message and a link to try again or contact support.
+  // Show failure state only after verification attempt finishes without a user
   if (!user) {
     return (
-      <div className="container py-16 text-center">
+      <div className="container max-w-md mx-auto py-16 text-center">
         <h1 className="text-3xl font-serif text-[#43408C]">Verification Failed</h1>
         <p className="text-[#4A4A4A] mt-4">
-          We couldn't verify your email. The link may have expired or been used already.
+          We couldn't verify your email session. The link may have expired or was already used.
         </p>
         <Link to="/login" className="mt-6 btn-primary inline-block">
           Go to Login
