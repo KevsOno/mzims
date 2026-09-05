@@ -23,16 +23,18 @@ const FragranceRequest: React.FC = () => {
     setErrorMessage('');
 
     try {
-      await api.post('/requests', {
+      // Fixed: Added trailing slash to match FastAPI route directly without 307 redirect
+      await api.post('/requests/', {
         request_text: requestText,
         contact: contact,
-        customer_id: user?.id || null,
       });
       setSubmitted(true);
     } catch (error: any) {
       console.error('Request submission error:', error);
       setErrorMessage(
-        error.response?.data?.message || 'Failed to submit request. Please check your credentials and try again.'
+        error.response?.data?.message ||
+        error.response?.data?.detail ||
+        'Failed to submit request. Please check your network connection and try again.'
       );
     } finally {
       setLoading(false);
