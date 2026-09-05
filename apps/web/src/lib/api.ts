@@ -1,7 +1,9 @@
 import axios from 'axios';
-import { supabase } from './supabase'; // Direct import at the top
+import { supabase } from './supabase';
 
-const baseURL = import.meta.env.VITE_API_URL || 'https://muzoscent.onrender.com/api/v1/';
+// Clean trailing slashes automatically
+const rawBaseUrl = import.meta.env.VITE_API_URL || 'https://muzoscent.onrender.com/api/v1';
+const baseURL = rawBaseUrl.replace(/\/+$/, '');
 
 const api = axios.create({
   baseURL,
