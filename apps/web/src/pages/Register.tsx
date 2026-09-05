@@ -3,6 +3,9 @@ import { useAuth } from '../store/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Register: React.FC = () => {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,7 +25,13 @@ const Register: React.FC = () => {
 
     setLoading(true);
     try {
-      await signUp(email, password);
+      // Passes user metadata to Supabase / Auth Provider
+      await signUp(email, password, {
+        first_name: firstName,
+        last_name: lastName,
+        phone: phone,
+      });
+
       alert('Account created! Please check your email to confirm.');
       navigate('/login');
     } catch (error: any) {
@@ -49,6 +58,46 @@ const Register: React.FC = () => {
     <div className="container max-w-md mx-auto py-12">
       <h1 className="text-2xl font-serif text-[#43408C] mb-4">Create Account</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* First & Last Name Inputs */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">First Name</label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              className="input-field"
+              placeholder="John"
+            />
+          </div>
+          <div>
+            <label className="label">Last Name</label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+              className="input-field"
+              placeholder="Doe"
+            />
+          </div>
+        </div>
+
+        {/* Phone Number Input */}
+        <div>
+          <label className="label">Phone Number</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+            className="input-field"
+            placeholder="+234..."
+          />
+        </div>
+
+        {/* Email Input */}
         <div>
           <label className="label">Email</label>
           <input
@@ -57,9 +106,11 @@ const Register: React.FC = () => {
             onChange={(e) => setEmail(e.target.value)}
             required
             className="input-field"
+            placeholder="john@example.com"
           />
         </div>
 
+        {/* Password Input */}
         <div>
           <label className="label">Password</label>
           <div className="relative">
@@ -81,6 +132,7 @@ const Register: React.FC = () => {
           </div>
         </div>
 
+        {/* Confirm Password Input */}
         <div>
           <label className="label">Confirm Password</label>
           <div className="relative">
