@@ -4,9 +4,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
-from sqlalchemy import (
-    Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
-)
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -49,12 +47,12 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     total = Column(Float, nullable=False)
-    currency = Column(String(3), nullable=False)
+    currency = Column(String(3), nullable=False, default="NGN")
     gateway = Column(String(20), nullable=False)
     status = Column(String(20), default="pending")
-    delivery_address = Column(Text, nullable=True)
+    address = Column(Text, nullable=True)  # Matched DB column
     phone = Column(String, nullable=True)
     email = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -101,18 +99,18 @@ class OrderItemCreate(BaseModel):
 
 class OrderCreate(BaseModel):
     customer_id: Optional[str] = None
-    guest_email: Optional[str] = Field(default=None, alias="email")
+    guest_email: Optional[str] = Field(default=None, validation_alias="email")
     phone: Optional[str] = None
-    address: Optional[str] = Field(default=None, alias="shipping_address")
+    address: Optional[str] = Field(default=None, validation_alias="shipping_address")
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     total: Decimal
     currency: str = "NGN"
-    gateway: str = Field(..., alias="payment_gateway")
+    gateway: str = Field(..., validation_alias="payment_gateway")
     items: List[OrderItemCreate]
 
     class Config:
-        populate_by_name = True  # Allows accepting both 'gateway' OR 'payment_gateway', 'address' OR 'shipping_address'
+        populate_by_name = True
 
 
 class OrderResponse(BaseModel):
@@ -122,7 +120,7 @@ class OrderResponse(BaseModel):
     currency: str
     gateway: str
     status: OrderStatus
-    delivery_address: Optional[str] = None
+    address: Optional[str] = None
     phone: Optional[str] = None
     email: str
     created_at: datetime
