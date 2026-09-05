@@ -12,4 +12,4 @@ sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.9
 greenlet>=3.0.0
 mailchimp-marketing>=3.0.80
-brevo-python>=4.0.0
+brevo-python>=5.0.0
