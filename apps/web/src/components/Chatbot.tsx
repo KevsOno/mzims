@@ -72,24 +72,25 @@ const Chatbot: React.FC = () => {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button - Lifted higher on mobile (bottom-20), standard on desktop (md:bottom-6) */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-50 bg-[#43408C] text-white p-4 rounded-full shadow-lg hover:bg-[#332E6E] transition-all duration-300 flex items-center justify-center"
+        className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50 bg-[#43408C] text-white p-3.5 md:p-4 rounded-full shadow-2xl hover:bg-[#332E6E] transition-all duration-300 flex items-center justify-center active:scale-95"
+        aria-label="Toggle chat"
       >
         {isOpen ? <X size={24} /> : <MessageCircle size={24} />}
       </button>
 
-      {/* Chat window */}
+      {/* Chat window - Lifted higher on mobile (bottom-36), responsive width & height */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-96 h-[500px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-[#E5E0D8]">
+        <div className="fixed bottom-36 right-4 md:bottom-24 md:right-6 z-50 w-[calc(100vw-2rem)] sm:w-96 h-[480px] max-h-[70vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-[#E5E0D8]">
           {/* Header */}
           <div className="bg-[#43408C] text-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MessageCircle size={20} />
               <span className="font-semibold">Muzoscent Assistant</span>
             </div>
-            <button onClick={() => setIsOpen(false)} className="hover:opacity-70">
+            <button onClick={() => setIsOpen(false)} className="hover:opacity-70 p-1">
               <X size={20} />
             </button>
           </div>
@@ -102,13 +103,13 @@ const Chatbot: React.FC = () => {
                 className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[80%] px-4 py-2 rounded-2xl ${
+                  className={`max-w-[85%] px-4 py-2.5 rounded-2xl ${
                     msg.sender === 'user'
                       ? 'bg-[#43408C] text-white rounded-br-none'
                       : 'bg-white border border-[#E5E0D8] text-[#1A1A1A] rounded-bl-none'
                   }`}
                 >
-                  <p className="text-sm">{msg.text}</p>
+                  <p className="text-sm leading-relaxed">{msg.text}</p>
                   <span className="text-[10px] opacity-70 mt-1 block">
                     {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -117,8 +118,8 @@ const Chatbot: React.FC = () => {
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-white border border-[#E5E0D8] px-4 py-2 rounded-2xl rounded-bl-none">
-                  <div className="flex gap-1">
+                <div className="bg-white border border-[#E5E0D8] px-4 py-2.5 rounded-2xl rounded-bl-none">
+                  <div className="flex gap-1.5 items-center">
                     <span className="w-2 h-2 bg-[#C9A96A] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-2 h-2 bg-[#C9A96A] rounded-full animate-bounce" style={{ animationDelay: '200ms' }} />
                     <span className="w-2 h-2 bg-[#C9A96A] rounded-full animate-bounce" style={{ animationDelay: '400ms' }} />
@@ -142,7 +143,7 @@ const Chatbot: React.FC = () => {
             <button
               onClick={sendMessage}
               disabled={isLoading || !input.trim()}
-              className="bg-[#43408C] text-white p-2 rounded-full hover:bg-[#332E6E] transition disabled:opacity-50"
+              className="bg-[#43408C] text-white p-2.5 rounded-full hover:bg-[#332E6E] transition disabled:opacity-50"
             >
               <Send size={18} />
             </button>
