@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, Search, Home, ShoppingBag, MessageSquare, User, LogIn, LogOut } from 'lucide-react';
 import { useCart } from '../store/CartContext';
@@ -9,6 +9,12 @@ const Header: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const totalItems = state.items.reduce((acc, i) => acc + i.quantity, 0);
+
+  // Extract first name or fallback to email username
+  const firstName =
+    user?.user_metadata?.first_name ||
+    user?.email?.split('@')[0] ||
+    'Account';
 
   const handleSignOut = async () => {
     try {
@@ -41,19 +47,27 @@ const Header: React.FC = () => {
               <Link to="/request-scent" className="text-sm text-[#1A1A1A] hover:text-[#43408C] transition border-b-2 border-transparent hover:border-[#C9A96A] pb-1">
                 Request
               </Link>
-              {/* Search icon now links to /products */}
               <Link to="/products" aria-label="Search products">
                 <Search size={20} className="text-[#4A4A4A] hover:text-[#43408C] transition" />
               </Link>
+
               {user ? (
-                <button onClick={handleSignOut} className="text-sm text-[#1A1A1A] hover:text-[#43408C] transition flex items-center gap-1" aria-label="Sign out">
-                  <LogOut size={18} /> Sign Out
-                </button>
+                <div className="flex items-center gap-4">
+                  {/* Logged in User Greeting */}
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-[#43408C]">
+                    <User size={18} className="text-[#C9A96A]" />
+                    <span>Hi, {firstName}</span>
+                  </div>
+                  <button onClick={handleSignOut} className="text-sm text-[#1A1A1A] hover:text-red-600 transition flex items-center gap-1" aria-label="Sign out">
+                    <LogOut size={18} /> Sign Out
+                  </button>
+                </div>
               ) : (
                 <Link to="/login" className="text-sm text-[#1A1A1A] hover:text-[#43408C] transition border-b-2 border-transparent hover:border-[#C9A96A] pb-1">
                   Sign In
                 </Link>
               )}
+
               <Link to="/cart" className="relative" aria-label="View cart">
                 <div className="w-10 h-10 rounded-full bg-[#FAF9F6] flex items-center justify-center hover:bg-[#F5F0E8] transition">
                   <ShoppingCart size={20} className="text-[#1A1A1A]" />
@@ -66,8 +80,13 @@ const Header: React.FC = () => {
               </Link>
             </nav>
 
-            {/* Mobile header – only logo and search */}
+            {/* Mobile Top Header */}
             <div className="md:hidden flex items-center gap-4">
+              {user && (
+                <span className="text-xs font-semibold text-[#43408C] bg-[#FAF9F6] px-2.5 py-1 rounded-full border border-[#E5E0D8]">
+                  Hi, {firstName}
+                </span>
+              )}
               <Link to="/products" aria-label="Search products">
                 <Search size={24} className="text-[#4A4A4A]" />
               </Link>
@@ -84,7 +103,7 @@ const Header: React.FC = () => {
         </div>
       </header>
 
-      {/* Bottom Navigation Bar – visible only on mobile */}
+      {/* Bottom Navigation Bar – Mobile Only */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-[#E5E0D8] px-2 py-1 flex justify-around items-center">
         <Link to="/" className="flex flex-col items-center text-xs text-[#4A4A4A] hover:text-[#43408C] transition" aria-label="Home">
           <Home size={24} />
@@ -110,7 +129,7 @@ const Header: React.FC = () => {
           <span>Cart</span>
         </Link>
         {user ? (
-          <button onClick={handleSignOut} className="flex flex-col items-center text-xs text-[#4A4A4A] hover:text-[#43408C] transition" aria-label="Sign out">
+          <button onClick={handleSignOut} className="flex flex-col items-center text-xs text-[#4A4A4A] hover:text-red-600 transition" aria-label="Sign out">
             <LogOut size={24} />
             <span>Logout</span>
           </button>
@@ -122,7 +141,6 @@ const Header: React.FC = () => {
         )}
       </nav>
 
-      {/* Add bottom padding to main content so it's not hidden behind the nav bar */}
       <div className="pb-20 md:pb-0" />
     </>
   );
