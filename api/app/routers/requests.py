@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from supabase import Client
 
 from ..core.db import get_supabase_client
+from ..core.auth import get_current_user_optional  # <-- Fixed import path to ..core.auth
 from ..models.fragrance_request import FragranceRequestCreate, FragranceRequestResponse
 from ..services.mailchimp import MailchimpService
 from ..services.email import send_internal_notification
-from .auth import get_current_user_optional  # <-- Updated to optional auth helper
 
 logger = logging.getLogger(__name__)
 
